@@ -13,8 +13,17 @@ public class SMSReceiver extends BroadcastReceiver {
     
     @Override
     public void onReceive(Context context, Intent intent) {
-        if ("android.provider.Telephony.SMS_RECEIVED".equals(intent.getAction())) {
+        if ("android.provider.Telephony.SMS_RECEIVED".equals(intent.getAction()) || "android.provider.Telephony.SMS_DELIVER".equals(intent.getAction())) {
             Log.d(TAG, "SMS_RECEIVED intent received");
+            
+            // DEBUG TOAST
+            android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+            handler.post(new Runnable() {
+                public void run() {
+                    android.widget.Toast.makeText(context, "SMSGuardian Native: SMS Received!", android.widget.Toast.LENGTH_LONG).show();
+                }
+            });
+
             Bundle bundle = intent.getExtras();
             
             if (bundle != null) {
@@ -33,14 +42,8 @@ public class SMSReceiver extends BroadcastReceiver {
                             Log.d(TAG, "SMS intercepted from: " + phoneNumber);
                             Log.d(TAG, "Message: " + messageBody);
                             
-                            // Bloquear ANTES de enviar a React Native para máxima efectividad
-                            if (isKnownSpam(phoneNumber, messageBody)) {
-                                Log.i(TAG, "BLOCKING SMS from spam source: " + phoneNumber);
-                                abortBroadcast();
-                                return; // Salir inmediatamente después del bloqueo
-                            }
                             
-                            // Solo enviar a React Native si NO se bloqueó
+                            // PASS ALL TO JS (JS will decide to block or notify)
                             sendSMSToReactNative(context, phoneNumber, messageBody, timestamp);
                         }
                     }
@@ -54,15 +57,9 @@ public class SMSReceiver extends BroadcastReceiver {
     private void sendSMSToReactNative(Context context, String phoneNumber, String messageBody, long timestamp) {
         try {
             SMSModule.sendSMSEvent(phoneNumber, messageBody, timestamp);
-            Log.d(TAG, "SMS event sent via SMSModule");
+            Log.d(TAG, "SMS event passed to React Native");
         } catch (Exception e) {
             Log.e(TAG, "Error sending SMS via module", e);
         }
-    }
-    
-    private boolean isKnownSpam(String phoneNumber, String messageBody) {
-        return phoneNumber.equals("+34666123456") || 
-               phoneNumber.equals("+34911234567") ||
-               messageBody.toLowerCase().contains("bit.ly");
     }
 }

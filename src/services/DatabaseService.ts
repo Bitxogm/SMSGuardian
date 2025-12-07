@@ -1,6 +1,6 @@
 import SQLite, { SQLiteDatabase } from 'react-native-sqlite-storage';
 import { APP_CONFIG } from '../config/AppConfig';
-import { SMSMessage, SpamNumber  } from '../types/SMS';
+import { SMSMessage, SpamNumber } from '../types/SMS';
 
 SQLite.DEBUG(true);
 SQLite.enablePromise(true);
@@ -105,6 +105,17 @@ class DatabaseService {
       );
     `;
 
+    const createInbox = `
+      CREATE TABLE IF NOT EXISTS inbox (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        phone_number TEXT NOT NULL,
+        message_content TEXT,
+        timestamp BIGINT,
+        is_read BOOLEAN DEFAULT 0,
+        date_received DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
     // Ejecutar creación de tablas
     await this.database.executeSql(createSpamNumbers);
     await this.database.executeSql(createBlockedSMS);
@@ -112,6 +123,7 @@ class DatabaseService {
     await this.database.executeSql(createAppSettings);
     await this.database.executeSql(createQuarantinedSMS);
     await this.database.executeSql(createContacts);
+    await this.database.executeSql(createInbox);
 
     // Crear índices
     await this.database.executeSql('CREATE INDEX IF NOT EXISTS idx_spam_phone ON spam_numbers(phone_number);');
@@ -608,6 +620,67 @@ class DatabaseService {
 
     const query = 'UPDATE quarantined_sms SET is_reviewed = 1, user_action = ? WHERE id = ?';
     await this.database.executeSql(query, [userAction, id]);
+  }
+  async isNumberBlacklisted(phoneNumber: string): Promise<boolean> {
+    if (!this.database) return false;
+    try {
+      const query = 'SELECT COUNT(*) as count FROM spam_numbers WHERE phone_number = ? AND is_active = 1';
+      const [results] = await this.database.executeSql(query, [phoneNumber]);
+      return results.rows.item(0).count > 0;
+    } catch (error) {
+      console.error('Error checking blacklist:', error);
+      return false;
+    }
+  }
+
+  async logInbox(sms: { phoneNumber: string, messageContent: string, timestamp: number }): Promise<void> {
+    if (!this.database) return;
+    try {
+      const query = `
+        INSERT INTO inbox (phone_number, message_content, timestamp)
+        VALUES (?, ?, ?)
+      `;
+      await this.database.executeSql(query, [sms.phoneNumber, sms.messageContent, sms.timestamp]);
+      console.log('Logged SMS to Inbox');
+    } catch (error) {
+      console.error('Error logging to inbox:', error);
+    }
+  }
+  async getSpamCount(): Promise<number> {
+    if (!this.database) return 0;
+    try {
+      const [results] = await this.database.executeSql('SELECT COUNT(*) as count FROM spam_numbers');
+      return results.rows.item(0).count;
+    } catch (error) {
+      console.error('Error getting spam count:', error);
+      return 0;
+    }
+  }
+
+  async getDebugStats(): Promise<{
+    isConnected: boolean;
+    spamRules: number;
+    inboxCount: number;
+    blockedCount: number;
+  }> {
+    if (!this.database) {
+      return { isConnected: false, spamRules: 0, inboxCount: 0, blockedCount: 0 };
+    }
+    try {
+      const spamCount = await this.getSpamCount();
+      const [inboxRes] = await this.database.executeSql('SELECT COUNT(*) as count FROM inbox');
+      const [blockedRes] = await this.database.executeSql('SELECT COUNT(*) as count FROM blocked_sms');
+
+      return {
+        isConnected: true,
+        spamRules: spamCount,
+        inboxCount: inboxRes.rows.item(0).count,
+        blockedCount: blockedRes.rows.item(0).count
+      };
+    } catch (error) {
+      console.error('Error getting debug stats:', error);
+      return { isConnected: false, spamRules: 0, inboxCount: 0, blockedCount: 0 };
+    }
   }
 }
 

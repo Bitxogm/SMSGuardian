@@ -84,3 +84,6 @@ scripts/
 functions/.runtimeconfig.json
 firebase-config.js
 .vscode
+
+android/app/src/main/assets/index.android.bundle
+android/app/src/main/assets/

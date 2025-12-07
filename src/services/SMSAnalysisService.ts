@@ -126,6 +126,13 @@ export class SMSAnalysisService {
     let score = 0;
 
     for (const url of urls) {
+      // Check for URL shorteners
+      const domain = this.extractDomain(url);
+      if (URL_SHORTENERS.includes(domain)) {
+        score += 30; // High suspicion for shorteners
+        console.log(`Suspicious: URL shortener detected (${domain})`);
+      }
+
       try {
         const analysis = await URLThreatAnalyzer.analyzeURL(url);
         console.log(`URL Analysis: ${url} - ${analysis.isMalicious ? 'MALICIOUS' : 'SAFE'} (${analysis.confidence}%)`);
@@ -160,7 +167,7 @@ export class SMSAnalysisService {
       return cleanUrl;
     } catch (error) {
       // Fallback extraction
-      const match = url.match(/(?:https?:\/\/)?(?:www\.)?([^\/\s\?]+)/);
+      const match = url.match(/(?:https?:\/\/)?(?:www\.)?([^\/\s?]+)/);
       return match ? match[1].toLowerCase() : url.toLowerCase();
     }
   }

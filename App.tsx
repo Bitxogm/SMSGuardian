@@ -1,18 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { StatusBar, Text, View, StyleSheet } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { DashboardScreen } from './src/screens/DashboardScreen';
-import { QuarantineScreen } from './src/screens/QuarantineScreen';
+import AppNavigator from './src/navigation/AppNavigator';
 import { databaseService } from './src/services/DatabaseService';
 import { SMSInterceptorService } from './src/services/SMSInterceptorService';
 import { ContactsService } from './src/services/ContactsService';
 
-type ScreenType = 'dashboard' | 'quarantine';
-
 const App: React.FC = () => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
-  const [currentScreen, setCurrentScreen] = useState<ScreenType>('dashboard');
 
   useEffect(() => {
     initializeApp();
@@ -20,14 +16,15 @@ const App: React.FC = () => {
 
   const initializeApp = async () => {
     try {
-      console.log('Initializing SMS Guardian...');
+      console.log('Initialize App...');
       await databaseService.initialize();
-       await ContactsService.initialize();  
+      // Safe to initialize now as it is a stub
+      await ContactsService.initialize();
+      console.log('ContactsService Stub Active');
       await SMSInterceptorService.initialize();
-      console.log('SMS Guardian initialized successfully');
       setIsInitialized(true);
     } catch (error) {
-      console.error('Failed to initialize SMS Guardian:', error);
+      console.error('Failed to initialize:', error);
       setInitError(error instanceof Error ? error.message : 'Unknown error');
     }
   };
@@ -57,21 +54,12 @@ const App: React.FC = () => {
     );
   }
 
-  const renderScreen = () => {
-    switch (currentScreen) {
-      case 'quarantine':
-        return <QuarantineScreen onNavigateBack={() => setCurrentScreen('dashboard')} />;
-      default:
-        return <DashboardScreen onNavigateToQuarantine={() => setCurrentScreen('quarantine')} />;
-    }
-  };
-
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-        {renderScreen()}
-      </SafeAreaView>
+        <AppNavigator />
+      </View>
     </SafeAreaProvider>
   );
 };

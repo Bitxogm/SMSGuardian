@@ -11,8 +11,13 @@ export class PermissionsService {
         PermissionsAndroid.PERMISSIONS.READ_CONTACTS,
       ];
 
+      // Add Notification permission for Android 13+
+      if (Platform.Version >= 33) {
+        permissions.push(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+      }
+
       const granted = await PermissionsAndroid.requestMultiple(permissions);
-      
+
       const allGranted = Object.values(granted).every(
         permission => permission === PermissionsAndroid.RESULTS.GRANTED
       );
@@ -39,7 +44,7 @@ export class PermissionsService {
       const receiveGranted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECEIVE_SMS);
       const readGranted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_SMS);
       const contactsGranted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_CONTACTS);
-      
+
       return receiveGranted && readGranted && contactsGranted;
     } catch (error) {
       console.error('Error checking SMS permissions:', error);
@@ -48,39 +53,39 @@ export class PermissionsService {
   }
 
   static async checkContactsPermission(): Promise<boolean> {
-  if (Platform.OS !== 'android') return true;
+    if (Platform.OS !== 'android') return true;
 
-  try {
-    const result = await PermissionsAndroid.check(
-      PermissionsAndroid.PERMISSIONS.READ_CONTACTS
-    );
-    return result;
-  } catch (error) {
-    console.error('Error checking contacts permission:', error);
-    return false;
+    try {
+      const result = await PermissionsAndroid.check(
+        PermissionsAndroid.PERMISSIONS.READ_CONTACTS
+      );
+      return result;
+    } catch (error) {
+      console.error('Error checking contacts permission:', error);
+      return false;
+    }
   }
-}
 
-static async requestContactsPermission(): Promise<boolean> {
-  if (Platform.OS !== 'android') return true;
+  static async requestContactsPermission(): Promise<boolean> {
+    if (Platform.OS !== 'android') return true;
 
-  try {
-    const granted = await PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.READ_CONTACTS,
-      {
-        title: 'Permisos de Contactos',
-        message: 'SMS Guardian necesita acceso a tus contactos para la whitelist',
-        buttonNeutral: 'Preguntar después',
-        buttonNegative: 'Cancelar',
-        buttonPositive: 'Aceptar',
-      }
-    );
-    return granted === PermissionsAndroid.RESULTS.GRANTED;
-  } catch (error) {
-    console.error('Error requesting contacts permission:', error);
-    return false;
+    try {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.READ_CONTACTS,
+        {
+          title: 'Permisos de Contactos',
+          message: 'SMS Guardian necesita acceso a tus contactos para la whitelist',
+          buttonNeutral: 'Preguntar después',
+          buttonNegative: 'Cancelar',
+          buttonPositive: 'Aceptar',
+        }
+      );
+      return granted === PermissionsAndroid.RESULTS.GRANTED;
+    } catch (error) {
+      console.error('Error requesting contacts permission:', error);
+      return false;
+    }
   }
-}
 
 
 }
