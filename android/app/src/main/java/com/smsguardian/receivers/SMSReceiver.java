@@ -55,11 +55,29 @@ public class SMSReceiver extends BroadcastReceiver {
     }
     
     private void sendSMSToReactNative(Context context, String phoneNumber, String messageBody, long timestamp) {
+        // 1. Try to send to active React Native instance
         try {
             SMSModule.sendSMSEvent(phoneNumber, messageBody, timestamp);
-            Log.d(TAG, "SMS event passed to React Native");
+            Log.d(TAG, "SMS event passed to React Native Module");
         } catch (Exception e) {
             Log.e(TAG, "Error sending SMS via module", e);
+        }
+
+        // 2. Always start Headless Service to ensure background processing
+        // The JS side should handle deduplication if necessary
+        try {
+            Intent serviceIntent = new Intent(context, com.smsguardian.services.HeadlessSmsSendService.class);
+            Bundle bundle = new Bundle();
+            bundle.putString("phoneNumber", phoneNumber);
+            bundle.putString("messageBody", messageBody);
+            bundle.putLong("timestamp", timestamp);
+            serviceIntent.putExtras(bundle);
+            
+            context.startService(serviceIntent);
+            com.facebook.react.HeadlessJsTaskService.acquireWakeLockNow(context);
+            Log.d(TAG, "Headless Service started");
+        } catch (Exception e) {
+            Log.e(TAG, "Error starting Headless Service", e);
         }
     }
 }
