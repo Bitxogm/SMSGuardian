@@ -60,7 +60,26 @@ npm run android
 
 # Compilar una Release Test (APK firmado para pruebas)
 ./build-fresh.sh
+./build-fresh.sh
 ```
+
+### ⚙️ Configuración del Entorno (API Keys)
+
+Para que el análisis híbrido funcione al 100% (Consulta a VirusTotal y Google), necesitas configurar tus claves de API.
+
+1.  Crea el archivo `src/config/env.ts` (puedes usar `env.example.ts` como base si existe, o crear uno nuevo).
+2.  Añade tus claves personales:
+
+```typescript
+// src/config/env.ts
+export const API_KEYS = {
+  virusTotal: 'TU_CLAVE_DE_VIRUSTOTAL_AQUI', 
+  safeBrowsing: 'TU_CLAVE_DE_GOOGLE_SAFE_BROWSING_AQUI',
+  phishTank: 'TU_CLAVE_DE_PHISHTANK_AQUI' // Opcional
+};
+```
+
+> **Nota**: El proyecto funcionará sin estas claves, pero el análisis se limitará a la detección local offline (Listas blancas y patrones).
 
 ### Verificación de Seguridad
 Para probar el motor de análisis:
