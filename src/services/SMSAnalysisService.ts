@@ -1,8 +1,9 @@
-import { SUSPICIOUS_PATTERNS, URL_SHORTENERS, APP_CONFIG } from '../config/AppConfig';
-import { SMSMessage } from '../types/SMS';
-import { databaseService } from './DatabaseService';
+import { PhoneNumberReputationService, ReputationResult } from './PhoneNumberReputationService';
 import { ContactsService } from './ContactsService';
+import { databaseService } from './DatabaseService';
+import { APP_CONFIG, SUSPICIOUS_PATTERNS, URL_SHORTENERS } from '../config/AppConfig';
 import { URLThreatAnalyzer } from './URLThreatAnalyzer';
+import { SMSMessage } from '../types/SMS';
 
 export class SMSAnalysisService {
   static async analyzeSMS(phoneNumber: string, messageContent: string): Promise<{
@@ -11,20 +12,44 @@ export class SMSAnalysisService {
     reason: string;
     threatLevel: 'safe' | 'suspicious' | 'malicious';
     suspiciousScore: number;
+    reputationDetails?: any; // New field for UI
   }> {
 
     try {
       // 0. NUEVO: Verificar si está en contactos (whitelist automática)
-      const isContact = await ContactsService.isInContacts(phoneNumber);
-      if (isContact) {
-        return {
-          shouldBlock: false,
-          shouldQuarantine: false,
-          reason: 'Contact whitelist',
-          threatLevel: 'safe',
-          suspiciousScore: 0
-        };
+      try {
+        const isContact = await ContactsService.isInContacts(phoneNumber);
+        if (isContact) {
+          return {
+            shouldBlock: false,
+            shouldQuarantine: false,
+            reason: 'Contact whitelist',
+            threatLevel: 'safe',
+            suspiciousScore: 0
+          };
+        }
+      } catch (e) {
+        console.warn('Contacts check failed, proceeding:', e);
       }
+
+      // 0.5. NUEVO: Análisis de Reputación del Número
+      // Initialize with default safe values conforming to ReputationResult
+      let reputation: ReputationResult = {
+        phoneNumber,
+        riskLevel: 'NEUTRAL',
+        score: 0,
+        isPremium: false,
+        label: 'Unknown',
+        details: 'Analysis not performed or failed'
+      };
+
+      try {
+        reputation = PhoneNumberReputationService.analyzeNumber(phoneNumber);
+        console.log(`Reputation Analysis: ${phoneNumber} - ${reputation.riskLevel} (${reputation.score})`);
+      } catch (e) {
+        console.warn('Reputation check failed, proceeding:', e);
+      }
+
       // 1. Check if number is in spam database
       const spamInfo = await databaseService.isSpamNumber(phoneNumber);
       if (spamInfo) {
@@ -33,53 +58,65 @@ export class SMSAnalysisService {
           shouldQuarantine: true,
           reason: `Spam database: ${spamInfo.spam_type}`,
           threatLevel: 'malicious',
-          suspiciousScore: spamInfo.confidence_score || 50
+          suspiciousScore: Math.max(spamInfo.confidence_score || 50, reputation.score)
         };
       }
 
-      // 2. Analyze message content for suspicious patterns
+      // 2. Analyze message content
       const contentScore = this.analyzeContent(messageContent);
 
       // 3. Check for suspicious URLs
       const urls = this.extractURLs(messageContent);
       const urlScore = await this.analyzeURLs(urls);
 
-      // 4. Calculate total suspicious score
-      const totalScore = contentScore + urlScore;
+      // 4. Calculate total suspicious score (Including Reputation)
+      // Score = Content + URL + Reputation
+      const totalScore = contentScore + urlScore + reputation.score;
+      console.log(`Final Analysis: Content(${contentScore}) + URL(${urlScore}) + Rep(${reputation.score}) = ${totalScore}`);
 
       // 5. Determine action based on score
       if (totalScore >= APP_CONFIG.security.maliciousThreshold) {
+        const primaryReason = reputation.score > 70 ? (reputation.label || 'High Risk Number') : 'High suspicious score';
+
         return {
           shouldBlock: true,
           shouldQuarantine: true,
-          reason: 'High suspicious score',
+          reason: primaryReason,
           threatLevel: 'malicious',
-          suspiciousScore: totalScore
+          suspiciousScore: totalScore,
+          reputationDetails: reputation
         };
       } else if (totalScore >= APP_CONFIG.security.suspiciousThreshold) {
+        const warningReason = reputation.score > 40 ? (reputation.label || 'Suspicious Number') : 'Suspicious content';
+
         return {
           shouldBlock: false, // Quarantine instead
           shouldQuarantine: true,
-          reason: 'Suspicious content detected',
+          reason: warningReason,
           threatLevel: 'suspicious',
-          suspiciousScore: totalScore
+          suspiciousScore: totalScore,
+          reputationDetails: reputation
         };
       }
 
+      // DEFAULT SAFE
       return {
         shouldBlock: false,
-        shouldQuarantine: true,
+        shouldQuarantine: false,
         reason: 'Passed security checks',
         threatLevel: 'safe',
-        suspiciousScore: totalScore
+        suspiciousScore: totalScore,
+        reputationDetails: reputation
       };
 
     } catch (error) {
       console.error('Error analyzing SMS:', error);
+      // FAIL OPEN: If analysis fails, let it through to Inbox (better than losing it)
+      // Unless we want "Paranoid Mode", but for now, usability first.
       return {
         shouldBlock: false,
-        shouldQuarantine: true,
-        reason: 'Analysis error - allowing',
+        shouldQuarantine: false,
+        reason: 'Analysis error - Safe fallback',
         threatLevel: 'safe',
         suspiciousScore: 0
       };

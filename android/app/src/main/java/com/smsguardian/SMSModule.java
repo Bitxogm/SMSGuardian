@@ -4,6 +4,8 @@ import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.bridge.WritableArray;
+import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 import android.util.Log;
@@ -16,6 +18,11 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import android.app.PendingIntent;
 import android.content.Intent;
+import android.database.Cursor;
+import android.provider.ContactsContract;
+import android.content.ContentValues;
+import android.net.Uri;
+import android.provider.Telephony;
 
 public class SMSModule extends ReactContextBaseJavaModule {
     private static final String TAG = "SMSModule";
@@ -60,10 +67,12 @@ public class SMSModule extends ReactContextBaseJavaModule {
             PendingIntent pendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE);
 
             NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
-                    .setSmallIcon(android.R.drawable.sym_action_chat) // Use a default system icon or app icon
-                    .setContentTitle("SMS: " + phoneNumber)
-                    .setContentText(messageBody)
-                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setSmallIcon(android.R.drawable.sym_action_chat)
+                    .setContentTitle("SMS Guardian: Nuevo Mensaje")
+                    .setContentText(phoneNumber + ": " + messageBody)
+                    .setPriority(NotificationCompat.PRIORITY_MAX) // HEADS UP
+                    .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                    .setDefaults(NotificationCompat.DEFAULT_ALL)
                     .setContentIntent(pendingIntent)
                     .setAutoCancel(true);
 
@@ -72,6 +81,83 @@ public class SMSModule extends ReactContextBaseJavaModule {
             notificationManager.notify((int) System.currentTimeMillis(), builder.build());
         } catch (Exception e) {
             Log.e(TAG, "Error showing notification", e);
+        }
+    }
+
+    @ReactMethod
+    public void getDeviceContacts(Promise promise) {
+        try {
+            WritableArray contactsArray = Arguments.createArray();
+            Context context = getReactApplicationContext();
+            
+            String[] projection = {
+                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                ContactsContract.CommonDataKinds.Phone.NUMBER,
+                ContactsContract.CommonDataKinds.Phone.CONTACT_ID
+            };
+
+            Cursor cursor = context.getContentResolver().query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                projection,
+                null,
+                null,
+                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
+            );
+
+            if (cursor != null) {
+                try {
+                    int nameIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME);
+                    int numberIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER);
+                    int idIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.CONTACT_ID);
+
+                    while (cursor.moveToNext()) {
+                        String name = cursor.getString(nameIndex);
+                        String number = cursor.getString(numberIndex);
+                        String id = cursor.getString(idIndex);
+
+                        if (name != null && number != null) {
+                            WritableMap contactMap = Arguments.createMap();
+                            contactMap.putString("name", name);
+                            contactMap.putString("phoneNumber", number);
+                            contactMap.putString("id", id);
+                            contactsArray.pushMap(contactMap);
+                        }
+                    }
+                    promise.resolve(contactsArray);
+                } finally {
+                    cursor.close();
+                }
+            } else {
+                promise.resolve(Arguments.createArray());
+            }
+        } catch (Exception e) {
+            promise.reject("CONTACTS_ERROR", e.getMessage());
+        }
+    }
+
+    @ReactMethod
+    public void saveSmsToInbox(String phoneNumber, String messageBody, double timestamp, Promise promise) {
+        try {
+            Context context = getReactApplicationContext();
+            ContentValues values = new ContentValues();
+            values.put("address", phoneNumber);
+            values.put("body", messageBody);
+            values.put("read", 0); // 0 = unread, 1 = read
+            values.put("date", (long) timestamp);
+            values.put("type", 1); // 1 = Inbox, 2 = Sent
+
+            Uri uri = context.getContentResolver().insert(Telephony.Sms.Inbox.CONTENT_URI, values);
+            
+            if (uri != null) {
+                Log.d(TAG, "SMS saved to inbox: " + uri.toString());
+                promise.resolve(true);
+            } else {
+                Log.e(TAG, "Failed to save SMS to inbox. Is app default SMS handler?");
+                promise.resolve(false); 
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error saving SMS to inbox", e);
+            promise.resolve(false); // Graceful fail
         }
     }
 
@@ -100,12 +186,12 @@ public class SMSModule extends ReactContextBaseJavaModule {
                     .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
                     .emit(eventName, params);
 
-                Log.d(TAG, "Event " + eventName + " emitted successfully");
+                Log.e(TAG, "Event " + eventName + " emitted successfully to JS");
             } catch (Exception e) {
                 Log.e(TAG, "Error sending event " + eventName, e);
             }
         } else {
-            Log.w(TAG, "React context is null");
+            Log.e(TAG, "React context is null - Cannot emit event " + eventName);
         }
     }
 }

@@ -17,31 +17,41 @@ export class URLThreatAnalyzer {
   static async analyzeURL(url: string): Promise<URLThreatResult> {
     try {
       console.log(`🔍 Analyzing URL: ${url}`);
-      
-      const localResult = this.quickLocalAnalysis(url);
-      console.log(`📊 Local analysis: ${localResult.isMalicious ? 'MALICIOUS' : 'CLEAN'} (${localResult.confidence}%)`);
 
-      // NUEVA LÓGICA: Si es sospechosa O si tenemos APIs, siempre consultar APIs
-      const shouldUseAPIs = localResult.isMalicious || this.hasAPIKeys();
-      
-      if (shouldUseAPIs) {
-        console.log(`🌐 Consulting external APIs for verification...`);
-        
+      // 1. ANÁLISIS LOCAL (Rápido)
+      const localResult = this.quickLocalAnalysis(url);
+
+      // OPTIMIZACIÓN HÍBRIDA:
+      // Si el análisis local dice que es un DOMINIO OFICIAL SEGURO (whitelist),
+      // terminamos aquí y ahorramos la llamada a la API (y tiempo).
+      if (localResult.source === 'local_whitelist') {
+        console.log(`✅ Official domain detected (${url}). Skipping online scan.`);
+        return localResult;
+      }
+
+      console.log(`📊 Local analysis: ${localResult.isMalicious ? 'SUSPICIOUS' : 'CLEAN'} (${localResult.confidence}%)`);
+
+      // 2. ANÁLISIS ONLINE (Profundo)
+      // Si tenemos claves, pedimos una segunda opinión a los expertos (VirusTotal/Google).
+      // Especialmente útil si localmente parece limpio pero podría ser phishing nuevo,
+      // o si localmente es sospechoso y queremos confirmar.
+      if (this.hasAPIKeys()) {
+        console.log(`🌐 Initiating Deep Online Analysis (VirusTotal/GSB)...`);
+
         const [vtResult, gsbResult, ptResult] = await Promise.allSettled([
           this.queryVirusTotal(url),
-          this.queryGoogleSafeBrowsing(url), 
+          this.queryGoogleSafeBrowsing(url),
           this.queryPhishTank(url)
         ]);
 
         const combinedResult = this.combineResults(localResult, [vtResult, gsbResult, ptResult]);
-        console.log(`📊 Final result: ${combinedResult.isMalicious ? 'MALICIOUS' : 'CLEAN'} (${combinedResult.confidence}%)`);
+        console.log(`📊 Final Analysis: ${combinedResult.isMalicious ? 'MALICIOUS 🚨' : 'SAFE ✅'} (${combinedResult.confidence}%)`);
         return combinedResult;
       } else {
-        console.log(`📊 Using local analysis only - URL appears clean`);
+        console.log(`⚠️ No API keys found. Relying on local heuristics only.`);
         return {
           ...localResult,
-          source: `${localResult.source}_only`,
-          details: `${localResult.details} (APIs available but not needed)`
+          details: `${localResult.details} (Online APIs not configured)`
         };
       }
 
@@ -72,14 +82,14 @@ export class URLThreatAnalyzer {
       const response = await fetch(
         `https://www.virustotal.com/vtapi/v2/url/report?apikey=${this.API_KEYS.virusTotal}&resource=${encodeURIComponent(url)}`
       );
-      
+
       if (!response.ok) {
         console.log(`VirusTotal API error: ${response.status}`);
         return null;
       }
-      
+
       const data = await response.json();
-      
+
       if (data.response_code === 1) {
         const maliciousCount = data.positives || 0;
         const totalScans = data.total || 1;
@@ -92,7 +102,7 @@ export class URLThreatAnalyzer {
           source: 'virustotal',
           details: `${maliciousCount}/${totalScans} engines flagged as malicious (${maliciousPercent.toFixed(1)}%)`
         };
-        
+
         console.log(`🦠 VirusTotal: ${result.isMalicious ? 'THREAT' : 'CLEAN'} - ${result.details}`);
         return result;
       } else {
@@ -165,7 +175,7 @@ export class URLThreatAnalyzer {
       });
 
       const data = await response.json();
-      
+
       const result = {
         url,
         isMalicious: data.results?.in_database || false,
@@ -187,34 +197,41 @@ export class URLThreatAnalyzer {
       .filter(result => result.status === 'fulfilled' && result.value)
       .map(result => result.value);
 
-    if (validResults.length === 0) {
-      console.log(`📊 No API results available, using local analysis only`);
+    // Si no hay resultados de API (fallaron o sin claves), devuelve local
+    if (validResults.length === 0) return localResult;
+
+    // LÓGICA DE CONSENSO:
+    const vt = validResults.find(r => r.source === 'virustotal');
+    const gsb = validResults.find(r => r.source === 'google_safe_browsing');
+
+    // 1. Si Google o VirusTotal dicen explícitamente que es MALICIOSO -> ES MALICIOSO.
+    if ((vt && vt.isMalicious) || (gsb && gsb.isMalicious)) {
       return {
-        ...localResult,
-        details: `${localResult.details} (API queries failed)`
+        url: localResult.url,
+        isMalicious: true,
+        confidence: Math.max(vt?.confidence || 0, gsb?.confidence || 0, 90),
+        source: vt?.isMalicious ? 'VirusTotal' : 'Google Safe Browsing',
+        details: `Confirmed threat by online scanner: ${vt?.isMalicious ? vt.details : gsb?.details}`
       };
     }
 
-    // Si CUALQUIER fuente dice que es maliciosa, es maliciosa
-    const isMalicious = validResults.some(result => result.isMalicious) || localResult.isMalicious;
-    
-    // Usar la confianza más alta
-    const maxConfidence = Math.max(
-      localResult.confidence,
-      ...validResults.map(r => r.confidence)
-    );
+    // 2. Si no es malicioso online, pero localmente era "sospechoso" (ej. IP directa),
+    // mantenemos la sospecha pero bajamos un poco la confianza si las APIs dicen clean.
+    if (localResult.isMalicious) {
+      return {
+        ...localResult,
+        confidence: 60, // Bajamos confianza si VT dice que está limpio
+        details: `${localResult.details} (but passed online scan)`
+      };
+    }
 
-    const sources = [localResult.source, ...validResults.map(r => r.source)];
-    const apiSummary = validResults.map(r => 
-      `${r.source}: ${r.isMalicious ? 'THREAT' : 'CLEAN'} (${r.confidence}%)`
-    ).join(', ');
-
+    // 3. Si todo está limpio -> SEGURO.
     return {
       url: localResult.url,
-      isMalicious,
-      confidence: maxConfidence,
-      source: `combined(${sources.join(',')})`,
-      details: `Local: ${localResult.isMalicious ? 'THREAT' : 'CLEAN'} (${localResult.confidence}%) | APIs: ${apiSummary}`
+      isMalicious: false,
+      confidence: 90, // Alta confianza porque pasamos Local + Online
+      source: 'Hybrid Analysis',
+      details: 'Verified safe by Local Heuristics and Online APIs'
     };
   }
 
@@ -241,21 +258,44 @@ export class URLThreatAnalyzer {
     }
 
     // 3. Brand impersonation
-    const brands = [
-      { pattern: /s[a4@]nt[a4@]nder/i, name: 'santander' },
-      { pattern: /p[a4@]yp[a4@]l/i, name: 'paypal' },
-      { pattern: /g[o0][o0]gle/i, name: 'google' },
-      { pattern: /[a4@]pple/i, name: 'apple' },
-      { pattern: /micr[o0]s[o0]ft/i, name: 'microsoft' },
-      { pattern: /dgt/i, name: 'dgt' },
-      { pattern: /h[a4@]ciend[a4@]/i, name: 'hacienda' },
-      { pattern: /bbv[a4@]/i, name: 'bbva' }
+    interface BrandRule { pattern: RegExp; name: string; official: string[] }
+    const brands: BrandRule[] = [
+      { pattern: /s[a4@]nt[a4@]nder/i, name: 'santander', official: ['santander.com', 'bancosantander.es', 'santander.es'] },
+      { pattern: /p[a4@]yp[a4@]l/i, name: 'paypal', official: ['paypal.com', 'paypal.me'] },
+      { pattern: /g[o0][o0]gle/i, name: 'google', official: ['google.com', 'google.es', 'accounts.google.com', 'drive.google.com', 'photos.google.com'] },
+      { pattern: /[a4@]pple/i, name: 'apple', official: ['apple.com', 'icloud.com'] },
+      { pattern: /micr[o0]s[o0]ft/i, name: 'microsoft', official: ['microsoft.com', 'live.com', 'office.com'] },
+      { pattern: /dgt/i, name: 'dgt', official: ['dgt.es', 'sede.dgt.gob.es'] },
+      { pattern: /h[a4@]ciend[a4@]/i, name: 'hacienda', official: ['agenciatributaria.es', 'agenciatributaria.gob.es'] },
+      { pattern: /bbv[a4@] /i, name: 'bbva', official: ['bbva.es', 'bbva.com'] }
     ];
-    
-    const matchedBrands = brands.filter(item => lowerUrl.match(item.pattern));
+
+    const matchedBrands = brands.filter(item => {
+      if (!lowerUrl.match(item.pattern)) return false;
+      return true;
+    });
+
+    // FIRST: Check if it's an OFFICIAL domain matching the brand
+    const officialMatch = matchedBrands.find(brandRule =>
+      brandRule.official.some(officialDomain => domain === officialDomain || domain.endsWith('.' + officialDomain))
+    );
+
+    if (officialMatch) {
+      // It matched a brand pattern BUT it is on the official whitelist.
+      // This is explicitly SAFE.
+      return {
+        url,
+        isMalicious: false,
+        confidence: 100,
+        source: 'local_whitelist',
+        details: `Verified official domain for ${officialMatch.name}`
+      };
+    }
+
+    // If it matched a brand pattern but NOT an official domain, it's highly suspicious (Impersonation)
     if (matchedBrands.length > 0) {
       suspiciousScore += 60;
-      reasons.push(`Brand impersonation: ${matchedBrands.map(b => b.name).join(', ')}`);
+      reasons.push(`Possible Brand Impersonation: ${matchedBrands.map(b => b.name).join(', ')}`);
     }
 
     // 4. Suspicious keywords
@@ -283,8 +323,8 @@ export class URLThreatAnalyzer {
       isMalicious: suspiciousScore >= 50,
       confidence: Math.min(suspiciousScore, 100),
       source: 'local_analysis',
-      details: reasons.length > 0 ? 
-        `${reasons.join(', ')} (Score: ${suspiciousScore})` : 
+      details: reasons.length > 0 ?
+        `${reasons.join(', ')} (Score: ${suspiciousScore})` :
         `No suspicious patterns found (Score: ${suspiciousScore})`
     };
   }

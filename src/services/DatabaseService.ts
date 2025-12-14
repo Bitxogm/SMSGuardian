@@ -636,6 +636,21 @@ class DatabaseService {
   async logInbox(sms: { phoneNumber: string, messageContent: string, timestamp: number }): Promise<void> {
     if (!this.database) return;
     try {
+      // DUPLICATE CHECK: Verify if this message already exists (same content, phone, and similar timestamp)
+      const checkQuery = `
+        SELECT id FROM inbox 
+        WHERE phone_number = ? 
+        AND message_content = ? 
+        AND ABS(timestamp - ?) < 2000 
+      `;
+      // Check within 2 seconds window to handle minor timestamp differences or exact matches
+      const [results] = await this.database.executeSql(checkQuery, [sms.phoneNumber, sms.messageContent, sms.timestamp]);
+
+      if (results.rows.length > 0) {
+        console.log('Skipping duplicate SMS log');
+        return;
+      }
+
       const query = `
         INSERT INTO inbox (phone_number, message_content, timestamp)
         VALUES (?, ?, ?)
@@ -681,6 +696,67 @@ class DatabaseService {
       console.error('Error getting debug stats:', error);
       return { isConnected: false, spamRules: 0, inboxCount: 0, blockedCount: 0 };
     }
+  }
+
+  async getInboxMessages(): Promise<any[]> {
+    if (!this.database) return [];
+    try {
+      const query = 'SELECT * FROM inbox ORDER BY timestamp DESC';
+      const [results] = await this.database.executeSql(query);
+      const messages = [];
+      for (let i = 0; i < results.rows.length; i++) {
+        messages.push(results.rows.item(i));
+      }
+      return messages;
+    } catch (error) {
+      console.error('Error getting inbox:', error);
+      return [];
+    }
+  }
+
+  async deleteInboxMessage(id: number): Promise<void> {
+    if (!this.database) return;
+    try {
+      await this.database.executeSql('DELETE FROM inbox WHERE id = ?', [id]);
+    } catch (error) {
+      console.error('Error deleting inbox message:', error);
+      throw error;
+    }
+  }
+  async addTestQuarantineMessages(): Promise<void> {
+    if (!this.database) return;
+
+    const testMessages = [
+      {
+        phoneNumber: '+1555000999',
+        messageContent: 'URGENTE: Su cuenta ha sido suspendida. Verifique aqui: http://testsafebrowsing.appspot.com/s/malware.html',
+        reason: 'Suspicious URL',
+        threatLevel: 'suspicious',
+        timestamp: Date.now() - 3600000,
+        urls: ['http://testsafebrowsing.appspot.com/s/malware.html']
+      },
+      {
+        phoneNumber: '+34600123456',
+        messageContent: 'Hola, mira estas fotos del viaje: http://google.com/photos',
+        reason: 'Suspicious Pattern',
+        threatLevel: 'suspicious',
+        timestamp: Date.now() - 7200000,
+        urls: ['http://google.com/photos']
+      },
+      {
+        phoneNumber: '+44700000000',
+        messageContent: 'Ganaste un iPhone! Reclama en http://bit.ly/fake-prize-claim',
+        reason: 'URL Shortener',
+        threatLevel: 'malicious',
+        timestamp: Date.now() - 10000,
+        urls: ['http://bit.ly/fake-prize-claim']
+      }
+    ];
+
+    for (const msg of testMessages) {
+      await this.quarantineSMS(msg);
+    }
+    console.log('Added test quarantine messages');
   }
 }
 

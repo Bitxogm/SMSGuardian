@@ -2,6 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer } from '@react-navigation/native';
 import { DashboardScreen } from '../screens/DashboardScreen';
+import { InboxScreen } from '../screens/InboxScreen';
 import { WhitelistScreen } from '../screens/WhitelistScreen';
 import { BlacklistScreen } from '../screens/BlacklistScreen';
 import { QuarantineScreen } from '../screens/QuarantineScreen';
@@ -25,6 +26,7 @@ const AppNavigator = () => {
           tabBarIcon: ({ focused, color, size }) => {
             let iconName = '❓';
             if (route.name === 'Dashboard') iconName = '🏠';
+            else if (route.name === 'Inbox') iconName = '📩';
             else if (route.name === 'Whitelist') iconName = '✅';
             else if (route.name === 'Blacklist') iconName = '⛔';
             else if (route.name === 'Quarantine') iconName = '⚠️';
@@ -37,6 +39,7 @@ const AppNavigator = () => {
         })}
       >
         <Tab.Screen name="Dashboard" component={DashboardScreen} />
+        <Tab.Screen name="Inbox" component={InboxScreen} />
         <Tab.Screen name="Quarantine" component={QuarantineScreen} />
         <Tab.Screen name="Whitelist" component={WhitelistScreen} />
         <Tab.Screen name="Blacklist" component={BlacklistScreen} />

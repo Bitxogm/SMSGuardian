@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.BROADCAST_SMS" />
     <uses-permission android:name="android.permission.WRITE_SMS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:name=".MainApplication"
@@ -38,6 +39,7 @@
             </intent-filter>
         </activity>
 
+        <!-- SMS Receiver (Existing + SMS_DELIVER for default app) -->
         <!-- SMS Receiver (Existing + SMS_DELIVER for default app) -->
         <receiver 
             android:name=".receivers.SMSReceiver"

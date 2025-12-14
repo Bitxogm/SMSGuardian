@@ -7,10 +7,14 @@ import {
   TouchableOpacity,
   Alert,
   Modal,
+  ScrollView,
 } from 'react-native';
 import { QuarantineService, QuarantinedSMS } from '../services/QuarantineService';
 import { databaseService } from '../services/DatabaseService';
 import { URLThreatAnalyzer, URLThreatResult } from '../services/URLThreatAnalyzer';
+import { PhoneNumberReputationService, ReputationResult } from '../services/PhoneNumberReputationService';
+
+import { useIsFocused } from '@react-navigation/native';
 
 interface Props {
   onNavigateBack?: () => void;
@@ -24,23 +28,37 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const modalTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const isFocused = useIsFocused(); // Hook to detect focus
+
   useEffect(() => {
-    loadQuarantinedSMS();
-    
+    if (isFocused) {
+      loadQuarantinedSMS();
+    }
+
     // Cleanup timeout on unmount
     return () => {
       if (modalTimeoutRef.current) {
         clearTimeout(modalTimeoutRef.current);
       }
     };
-  }, []);
+  }, [isFocused]); // Reload when focused
 
   const loadQuarantinedSMS = async () => {
     try {
-      const messages = await QuarantineService.getQuarantinedSMS();
-      setQuarantinedSMS(messages.filter(msg => !msg.is_reviewed));
+      let messages = await QuarantineService.getQuarantinedSMS();
+      console.log('Quarantined messages loaded:', messages.length);
+
+      // AUTO-INJECT TEST DATA if empty (for debugging)
+      if (messages.length === 0) {
+        console.log('Empty quarantine, injecting test data...');
+        await databaseService.addTestQuarantineMessages();
+        messages = await QuarantineService.getQuarantinedSMS();
+      }
+
+      setQuarantinedSMS(messages);
     } catch (error) {
       console.error('Error loading quarantined SMS:', error);
+      Alert.alert('Error', 'Error al cargar mensajes.');
     }
   };
 
@@ -89,7 +107,7 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
     try {
       // Usar tu URLThreatAnalyzer con APIs configuradas
       const result = await URLThreatAnalyzer.analyzeURL(url);
-      
+
       // Guardar resultado
       setUrlAnalysisResults(prev => ({ ...prev, [url]: result }));
 
@@ -97,7 +115,7 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
       modalTimeoutRef.current = setTimeout(() => {
         const threatEmoji = result.isMalicious ? '🚨' : '✅';
         const threatText = result.isMalicious ? 'PELIGROSA' : 'SEGURA';
-        
+
         Alert.alert(
           `${threatEmoji} Análisis Completado`,
           `🔍 URL: ${result.url.length > 40 ? result.url.substring(0, 40) + '...' : result.url}\n\n📊 Estado: ${threatText}\n\n🎯 Confianza: ${result.confidence}%\n\n🔎 Fuente: ${result.source}\n\n📝 Detalles: ${result.details}`,
@@ -136,13 +154,84 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
     );
   };
 
+  const handleScanAll = async () => {
+    if (!selectedSMS || !selectedSMS.analyzed_urls || selectedSMS.analyzed_urls.length === 0) {
+      Alert.alert('Nada que escanear', 'Este mensaje no contiene URLs detectadas.');
+      return;
+    }
+
+    setIsAnalyzing(true);
+    let maliciousCount = 0;
+
+    for (const url of selectedSMS.analyzed_urls) {
+      try {
+        const result = await URLThreatAnalyzer.analyzeURL(url);
+        setUrlAnalysisResults(prev => ({ ...prev, [url]: result }));
+        if (result.isMalicious) maliciousCount++;
+      } catch (error) {
+        console.error('Error scanning URL:', url, error);
+      }
+    }
+
+    setIsAnalyzing(false);
+
+    if (maliciousCount > 0) {
+      Alert.alert('⚠️ Amenazas Detectadas', `Se encontraron ${maliciousCount} URLs maliciosas. Se recomienda eliminar el mensaje.`);
+    } else {
+      Alert.alert('✅ Análisis Completado', 'No se encontraron amenazas en las URLs analizadas (según heurística local).');
+    }
+  };
+
+  // Helper to render Country/Risk Badges
+  const renderReputationBadge = (phoneNumber: string) => {
+    const reputation = PhoneNumberReputationService.analyzeNumber(phoneNumber);
+
+    if (reputation.riskLevel === 'SAFE' && !reputation.countryName) {
+      // Standard local number, no badge needed or maybe a flag if country detected
+      return null;
+    }
+
+    const badges = [];
+
+    // 1. Country Badge
+    if (reputation.countryName && reputation.countryName !== 'Unknown') {
+      badges.push(
+        <View key="country" style={[styles.badge, styles.badgeNeutral]}>
+          <Text style={styles.badgeText}>🌍 {reputation.countryName}</Text>
+        </View>
+      );
+    }
+
+    // 2. Risk Badge
+    if (reputation.riskLevel === 'DANGEROUS' || reputation.riskLevel === 'SUSPICIOUS') {
+      badges.push(
+        <View key="risk" style={[styles.badge, styles.badgeDanger]}>
+          <Text style={styles.badgeText}>
+            {reputation.isPremium ? '💰 PREMIUM' : '⚠️ HIGH RISK'}
+          </Text>
+        </View>
+      );
+    } else if (reputation.label === 'Shortcode') {
+      badges.push(
+        <View key="shortcode" style={[styles.badge, styles.badgeInfo]}>
+          <Text style={styles.badgeText}>🤖 SHORTCODE</Text>
+        </View>
+      );
+    }
+
+    return <View style={styles.badgeContainer}>{badges}</View>;
+  };
+
   const renderQuarantinedMessage = ({ item }: { item: QuarantinedSMS }) => (
     <TouchableOpacity
       style={styles.messageCard}
       onPress={() => showSMSPreview(item)}
     >
       <View style={styles.messageHeader}>
-        <Text style={styles.phoneNumber}>{item.phone_number}</Text>
+        <View>
+          <Text style={styles.phoneNumber}>{item.phone_number}</Text>
+          {renderReputationBadge(item.phone_number)}
+        </View>
         <Text style={styles.timestamp}>{formatDate(item.timestamp)}</Text>
       </View>
 
@@ -181,9 +270,9 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
   };
 
   const PreviewModal = () => (
-    <Modal 
-      visible={showPreview} 
-      animationType="slide" 
+    <Modal
+      visible={showPreview}
+      animationType="slide"
       presentationStyle="pageSheet"
       onRequestClose={() => setShowPreview(false)}
     >
@@ -199,9 +288,12 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
         </View>
 
         {selectedSMS && (
-          <View style={styles.smsDetails}>
+          <ScrollView style={styles.smsDetails} contentContainerStyle={{ paddingBottom: 20 }}>
             <Text style={styles.detailLabel}>Número:</Text>
-            <Text style={styles.detailValue}>{selectedSMS.phone_number}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+              <Text style={[styles.detailValue, { marginRight: 8 }]}>{selectedSMS.phone_number}</Text>
+              {renderReputationBadge(selectedSMS.phone_number)}
+            </View>
 
             <Text style={styles.detailLabel}>Razón de cuarentena:</Text>
             <Text style={styles.detailValue}>{selectedSMS.quarantine_reason}</Text>
@@ -222,7 +314,7 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
                 {selectedSMS.analyzed_urls.map((url, index) => {
                   const analysis = urlAnalysisResults[url];
                   const colors = analysis ? getAnalysisStatusColor(analysis) : null;
-                  
+
                   return (
                     <TouchableOpacity
                       key={index}
@@ -239,11 +331,11 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
                       <Text style={styles.blockedURL}>
                         🔗 {url.length > 45 ? url.substring(0, 45) + '...' : url}
                       </Text>
-                      
+
                       {analysis ? (
                         <View style={styles.analysisResultContainer}>
                           <Text style={[styles.analysisResult, { color: colors?.textColor }]}>
-                            {analysis.isMalicious ? '🚨 PELIGROSA' : '✅ SEGURA'} 
+                            {analysis.isMalicious ? '🚨 PELIGROSA' : '✅ SEGURA'}
                             ({analysis.confidence}%)
                           </Text>
                           <Text style={styles.analysisSource}>
@@ -265,7 +357,7 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
                 })}
               </>
             )}
-            
+
             {isAnalyzing && (
               <View style={styles.analyzingIndicator}>
                 <Text style={styles.analyzingText}>
@@ -273,8 +365,10 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
                 </Text>
               </View>
             )}
-          </View>
+          </ScrollView>
         )}
+
+
 
         <View style={styles.actionButtons}>
           <TouchableOpacity
@@ -288,7 +382,14 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
             style={[styles.actionButton, { backgroundColor: '#7C2D12' }]}
             onPress={() => handleUserAction('blocked_number')}
           >
-            <Text style={styles.actionButtonText}>Bloquear Número</Text>
+            <Text style={styles.actionButtonText}>Bloquear N°</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: '#2563EB' }]}
+            onPress={handleScanAll}
+          >
+            <Text style={styles.actionButtonText}>🔍 Escanear</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -305,16 +406,40 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity onPress={onNavigateBack} style={{ marginRight: 16 }}>
-            <Text style={styles.backButton}>← Volver</Text>
-          </TouchableOpacity>
-          <View>
-            <Text style={styles.title}>SMS en Cuarentena</Text>
-            <Text style={styles.subtitle}>
-              {quarantinedSMS.length} mensajes esperando revisión
-            </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flex: 1 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity onPress={onNavigateBack} style={{ marginRight: 16 }}>
+              <Text style={styles.backButton}>← Volver</Text>
+            </TouchableOpacity>
+            <View>
+              <Text style={styles.title}>SMS en Cuarentena</Text>
+              <Text style={styles.subtitle}>
+                {quarantinedSMS.length} mensajes esperando revisión
+              </Text>
+            </View>
           </View>
+
+          {/* Dedicated Test Data Button */}
+          <TouchableOpacity
+            style={{
+              padding: 8,
+              backgroundColor: '#FEF3C7',
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: '#F59E0B'
+            }}
+            onPress={async () => {
+              try {
+                await databaseService.addTestQuarantineMessages();
+                await loadQuarantinedSMS();
+                Alert.alert('Datos de Prueba', '✅ Se han inyectado 3 mensajes de prueba.');
+              } catch (e) {
+                Alert.alert('Error', 'No se pudieron inyectar los datos.');
+              }
+            }}
+          >
+            <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#B45309' }}>⚡ TEST</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -439,7 +564,7 @@ const styles = StyleSheet.create({
   },
   smsDetails: {
     flex: 1,
-    padding: 20,
+    paddingHorizontal: 20,
   },
   detailLabel: {
     fontSize: 14,
@@ -516,21 +641,56 @@ const styles = StyleSheet.create({
   },
   actionButtons: {
     flexDirection: 'row',
+    flexWrap: 'wrap', // Allow wrapping on small screens
     justifyContent: 'space-around',
     padding: 20,
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF', // Ensure background covers content if overlaying
   },
   actionButton: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
-    minWidth: 100,
+    minWidth: '30%', // Percentage width for better responsiveness
     alignItems: 'center',
+    marginBottom: 8, // Spacing for wrapped rows
+    marginHorizontal: 4, // Horizontal spacing fallback for gap
   },
   actionButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 13, // Slightly smaller text to fit
     fontWeight: '600',
+    textAlign: 'center',
+  },
+  badgeContainer: {
+    flexDirection: 'row',
+    marginTop: 4,
+    flexWrap: 'wrap',
+  },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    marginRight: 6,
+    marginBottom: 4,
+  },
+  badgeNeutral: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#D1D5DB',
+  },
+  badgeDanger: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FCA5A5',
+  },
+  badgeInfo: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#374151',
   },
 });

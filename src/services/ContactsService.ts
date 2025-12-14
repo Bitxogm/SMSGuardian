@@ -1,5 +1,8 @@
-// ContactsService.ts - Safe Stub Version
+// ContactsService.ts
+import { NativeModules, Platform } from 'react-native';
 import { databaseService } from './DatabaseService';
+
+const { SMSModule } = NativeModules;
 
 export interface Contact {
   id: string;
@@ -17,18 +20,29 @@ export interface WhitelistContact {
 
 export class ContactsService {
   static async initialize(): Promise<void> {
-    console.log('ContactsService initialized (Stub)');
+    console.log('ContactsService initialized');
   }
 
   static async checkContactsPermission(): Promise<boolean> {
-    return false;
+    // Permission checking is handled in PermissionsService, but we can double check here or delegate
+    // For now we assume the caller uses PermissionsService
+    return true;
   }
 
   static async requestContactsPermission(): Promise<boolean> {
-    return false;
+    return true;
   }
 
   static async getDeviceContacts(): Promise<Contact[]> {
+    if (Platform.OS === 'android') {
+      try {
+        const contacts = await SMSModule.getDeviceContacts();
+        return contacts;
+      } catch (error) {
+        console.error('Error fetching native contacts:', error);
+        return [];
+      }
+    }
     return [];
   }
 
@@ -43,7 +57,7 @@ export class ContactsService {
 
   static async addToWhitelist(phoneNumber: string, name: string): Promise<void> {
     try {
-      const normalized = phoneNumber.replace(/[\s\-\(\)\.]/g, '');
+      const normalized = phoneNumber.replace(/[\s\-().]/g, '');
       await databaseService.addContact(normalized, name, 'contacts');
     } catch (e) {
       console.error(e);
@@ -59,12 +73,37 @@ export class ContactsService {
   }
 
   static async syncAllContacts(): Promise<{ added: number }> {
-    return { added: 0 };
+    try {
+      const contacts = await this.getDeviceContacts();
+      let addedCount = 0;
+
+      console.log(`Syncing ${contacts.length} contacts...`);
+
+      for (const contact of contacts) {
+        if (contact.phoneNumber) {
+          // Clean phone number
+          const cleanPhone = contact.phoneNumber.replace(/[\s\-().]/g, '');
+
+          // Check if already exists to avoid duplicates (though DB might handle it)
+          const isWhitelisted = await databaseService.isInContacts(cleanPhone);
+
+          if (!isWhitelisted) {
+            await databaseService.addContact(cleanPhone, contact.name, 'sync');
+            addedCount++;
+          }
+        }
+      }
+
+      return { added: addedCount };
+    } catch (error) {
+      console.error('Error syncing contacts:', error);
+      return { added: 0 };
+    }
   }
 
   static async isInContacts(phoneNumber: string): Promise<boolean> {
     try {
-      const normalized = phoneNumber.replace(/[\s\-\(\)\.]/g, '');
+      const normalized = phoneNumber.replace(/[\s\-().]/g, '');
       return await databaseService.isInContacts(normalized);
     } catch (e) {
       return false;

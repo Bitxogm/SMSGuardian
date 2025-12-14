@@ -13,14 +13,15 @@ public class SMSReceiver extends BroadcastReceiver {
     
     @Override
     public void onReceive(Context context, Intent intent) {
+        Log.e(TAG, "onReceive Triggered! Action: " + intent.getAction());
         if ("android.provider.Telephony.SMS_RECEIVED".equals(intent.getAction()) || "android.provider.Telephony.SMS_DELIVER".equals(intent.getAction())) {
-            Log.d(TAG, "SMS_RECEIVED intent received");
+            Log.e(TAG, "SMS_RECEIVED intent received - DEBUG MODE");
             
-            // DEBUG TOAST
+            // DEBUG TOAST (Re-enabled for diagnosis)
             android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
             handler.post(new Runnable() {
                 public void run() {
-                    android.widget.Toast.makeText(context, "SMSGuardian Native: SMS Received!", android.widget.Toast.LENGTH_LONG).show();
+                    android.widget.Toast.makeText(context, "Debug: SMS Received by Native Receiver", android.widget.Toast.LENGTH_LONG).show();
                 }
             });
 
@@ -39,8 +40,8 @@ public class SMSReceiver extends BroadcastReceiver {
                             String messageBody = smsMessage.getMessageBody();
                             long timestamp = smsMessage.getTimestampMillis();
                             
-                            Log.d(TAG, "SMS intercepted from: " + phoneNumber);
-                            Log.d(TAG, "Message: " + messageBody);
+                            Log.e(TAG, "SMS intercepted from: " + phoneNumber);
+                            Log.e(TAG, "Message: " + messageBody);
                             
                             
                             // PASS ALL TO JS (JS will decide to block or notify)

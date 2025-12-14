@@ -1,7 +1,9 @@
-import { DeviceEventEmitter } from 'react-native';
+import { DeviceEventEmitter, NativeModules, Platform } from 'react-native';
 import { SMSAnalysisService } from './SMSAnalysisService';
 import { PermissionsService } from './PermissionsService';
-import { QuarantineService } from './QuarantineService';
+import { databaseService } from './DatabaseService';
+
+const { SMSModule } = NativeModules;
 
 export class SMSInterceptorService {
   private static listener: any = null;
@@ -24,14 +26,11 @@ export class SMSInterceptorService {
       this.listener = DeviceEventEmitter.addListener('SMS_RECEIVED', this.handleSMSReceived);
       console.log('✅ SMS Interceptor initialized - listening for SMS_RECEIVED');
 
-        setTimeout(() => {
-      console.log('Sending test event...');
-      DeviceEventEmitter.emit('SMS_RECEIVED', {
-        phoneNumber: '+34999999999',
-        messageBody: 'TEST: This is a test message',
-        timestamp: Date.now()
-      });
-    }, 2000);
+      // Create notification channel on init
+      if (Platform.OS === 'android') {
+        SMSModule.createNotificationChannel();
+      }
+
     } catch (error) {
       console.error('Error initializing SMS interceptor:', error);
     }
@@ -47,9 +46,30 @@ export class SMSInterceptorService {
       console.log('🔍 Analysis result:', JSON.stringify(analysis, null, 2));
 
       if (analysis.shouldQuarantine) {
-        console.log('⚠️ SMS QUARANTINED:', analysis.reason);
+        console.log('⚠️ SMS QUARANTINED (UI Listener):', analysis.reason);
       } else {
-        console.log('✅ SMS ALLOWED:', analysis.reason);
+        console.log('✅ SMS ALLOWED (UI Listener) - Processing in Foreground');
+
+        // RESTORED: Handle immediately in foreground to ensure UI responsiveness and reliability
+        if (Platform.OS === 'android') {
+          // 1. Save to System Inbox
+          await SMSModule.saveSmsToInbox(
+            smsData.phoneNumber,
+            smsData.messageBody,
+            smsData.timestamp || Date.now()
+          );
+          // 2. Show Notification (Native)
+          SMSModule.showNotification(smsData.phoneNumber, smsData.messageBody);
+        }
+
+        // 3. Log to internal DB
+        await databaseService.logInbox({
+          phoneNumber: smsData.phoneNumber,
+          messageContent: smsData.messageBody,
+          timestamp: smsData.timestamp || Date.now()
+        });
+
+        DeviceEventEmitter.emit('STATS_UPDATED');
       }
     } catch (error) {
       console.error('❌ Error analyzing SMS:', error);

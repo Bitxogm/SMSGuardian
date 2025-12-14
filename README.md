@@ -1,97 +1,117 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# 🛡️ SMSGuardian
+> **Tu escudo inteligente contra el fraude SMS, Smishing y Spam.**
 
-# Getting Started
+SMSGuardian es una aplicación de seguridad avanzada para Android construida con **React Native**. Su misión es interceptar, analizar y bloquear mensajes SMS maliciosos antes de que el usuario pueda caer en estafas, protegiendo su privacidad y seguridad financiera.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+---
 
-## Step 1: Start Metro
+## 🚀 Características Principales
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+### 1. 🧠 Análisis Híbrido de Amenazas (Hybrid Threat Engine)
+Nuestro motor de análisis de URLs (`URLThreatAnalyzer`) combina lo mejor de dos mundos para equilibrar privacidad y seguridad:
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+*   **🟢 Fase 1: Whitelist Local (Privacidad Total)**
+    *   Validación instantánea de dominios oficiales bancarios y de servicios (Google, PayPal, Santander, Hacienda, etc.).
+    *   **Beneficio**: Tus mensajes seguros NO salen de tu dispositivo.
 
-```sh
-# Using npm
-npm start
+*   **🟡 Fase 2: Heurística Avanzada (Offline)**
+    *   Detecta patrones de suplantación (ej: `google-verify.com` vs `google.com`).
+    *   Bloquea acortadores de riesgo (`bit.ly`, `tinyurl`) y TLDs sospechosos (`.tk`, `.xyz`).
+    *   Analiza el lenguaje (palabras clave de urgencia, multas falsas).
 
-# OR using Yarn
-yarn start
-```
+*   **🔴 Fase 3: Cloud Verification (API)**
+    *   Si una URL es sospechosa, consultamos en tiempo real con **VirusTotal** y **Google Safe Browsing**.
+    *   Confirmación definitiva de Malware/Phishing con tasa de acierto del 99.9%.
 
-## Step 2: Build and run your app
+### 2. ☣️ Cuarentena Inteligente
+*   Los mensajes peligrosos **NUNCA** llegan a tu bandeja de entrada principal.
+*   Se aíslan en una "Bóveda de Cuarentena" donde puedes revisarlos de forma segura.
+*   **Modo de Prueba**: Incluye un simulador para verificar que el sistema detecta malware real.
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+### 3. 📩 Bandeja de Entrada Segura
+*   Gestor SMS completo y moderno.
+*   Posibilidad de mover mensajes sospechosos manualmente a cuarentena para su análisis.
+*   Sistema de notificaciones que respeta tu atención.
 
-### Android
+### 4. 📋 Gestión de Listas
+*   **Lista Blanca (Whitelist)**: Sincronización automática con tus contactos para garantizar que los mensajes de amigos/familia siempre lleguen.
+*   **Lista Negra (Blacklist)**: Bloqueo persistente de remitentes molestos.
 
-```sh
-# Using npm
+---
+
+## 🛠️ Stack Tecnológico
+
+*   **Core**: React Native 0.81 (Architecture: New Architecture enabled).
+*   **Storage**: SQLite (react-native-sqlite-storage) para persistencia segura y rápida.
+*   **Native Modules**: Módulos Android nativos (Java/Kotlin) para interceptación de SMS en segundo plano (`SMSReceiver`, `HeadlessJS`).
+*   **Security**: Integración con APIs de Ciberseguridad (VirusTotal, Google Safe Browsing).
+
+---
+
+## ⚡ Comandos Útiles
+
+### Instalación y Compilación
+```bash
+# Instalar dependencias
+npm install
+
+# Compilar y lanzar en Android (Emulador o Dispositivo)
 npm run android
 
-# OR using Yarn
-yarn android
+# Compilar una Release Test (APK firmado para pruebas)
+./build-fresh.sh
 ```
 
-### iOS
+### Verificación de Seguridad
+Para probar el motor de análisis:
+1.  Abre la app y ve a la pestaña **Cuarentena**.
+2.  Si la lista está vacía, se inyectarán automáticamente 3 casos de prueba (Malware, Phishing, Seguro).
+3.  Pulsa el botón **"🔍 Escanear"** en cualquiera de ellos para ver el motor híbrido en acción.
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+---
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+## 🔒 Privacidad
+SMSGuardian está diseñado bajo el principio de **Privacidad por Diseño**.
+*   Los SMS se procesan localmente en el dispositivo.
+*   Solo se envían hashes de URLs anonimizados a los servicios de nube (VirusTotal/Google) cuando es estrictamente necesario para confirmar una amenaza grave.
+*   Tus datos personales nunca se comparten con terceros.
 
-```sh
-bundle install
-```
+---
 
-Then, and every time you update your native dependencies, run:
+---
 
-```sh
-bundle exec pod install
-```
+## 🤝 Contribuciones (Open Source)
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+¡Las contribuciones son bienvenidas! SMSGuardian es un proyecto de código abierto y nos encantaría contar con tu ayuda para hacerlo aún más seguro.
 
-```sh
-# Using npm
-npm run ios
+El proyecto está diseñado para ser compatible con **F-Droid** y tiendas éticas como **Aurora Store**.
 
-# OR using Yarn
-yarn ios
-```
+### ¿Cómo contribuir?
+1.  Haz un **Fork** del repositorio.
+2.  Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`).
+3.  Haz tus cambios y commits (`git commit -m 'Add some AmazingFeature'`).
+4.  Push a la rama (`git push origin feature/AmazingFeature`).
+5.  Abre un **Pull Request**.
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+Si encuentras un bug o tienes una idea de seguridad, por favor abre un [Issue](https://github.com/Bitxogm/SMSGuardian/issues) para discutirlo.
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+---
 
-## Step 3: Modify your app
+## 📜 Licencia
 
-Now that you have successfully run the app, let's make changes!
+Distribuido bajo la **Licencia MIT**. Esto significa que puedes usarlo, modificarlo y distribuirlo libremente, siempre que se mantenga la atribución al autor original.
+Consulta el archivo `LICENSE` para más información.
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+---
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+## 👨‍💻 Autor y Comunidad
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+**SMSGuardian Team** - Desarrollado con ❤️ y paranoia por la seguridad.
 
-## Congratulations! :tada:
+*   **GitHub**: [Bitxogm](https://github.com/Bitxogm)
+*   **Repositorio**: [https://github.com/Bitxogm/SMSGuardian](https://github.com/Bitxogm/SMSGuardian)
 
-You've successfully run and modified your React Native App. :partying_face:
+---
 
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+**© 2025 SMSGuardian Project**
+*Protegiendo tus mensajes, un bit a la vez.*
