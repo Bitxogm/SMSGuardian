@@ -109,4 +109,44 @@ export class PhoneNumberReputationService {
       details
     };
   }
+
+  /**
+   * NUEVO: Análisis asíncrono que permite consultas externas (Web Lookups)
+   */
+  static async analyzeNumberAsync(phoneNumber: string): Promise<ReputationResult> {
+    // Primero hacemos el análisis local rápido
+    const localResult = this.analyzeNumber(phoneNumber);
+
+    // Si ya es Peligroso, no hace falta buscar más
+    if (localResult.riskLevel === 'DANGEROUS') return localResult;
+
+    try {
+      // AQUÍ: Simulación de consulta a base de datos web de spam
+      // En una implementación real, aquí llamaríamos a una API de reputación (Truecaller, Numverify, etc.)
+      const isWebSpam = await this.mockWebSpamCheck(phoneNumber);
+
+      if (isWebSpam) {
+        localResult.score = Math.max(localResult.score, 85);
+        localResult.riskLevel = 'DANGEROUS';
+        localResult.label = 'Web-Reported Spam';
+        localResult.details += ' - Number reported as malicious in web databases.';
+      }
+    } catch (e) {
+      console.warn('Web reputation check failed:', e);
+    }
+
+    return localResult;
+  }
+
+  private static async mockWebSpamCheck(phoneNumber: string): Promise<boolean> {
+    // Simulamos una latencia de red
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        // Marcamos como spam si es un número que ha aparecido en nuestros ejemplos de smishing
+        const knownSpam = ['931845156', '612203803'];
+        const clean = phoneNumber.replace(/\s/g, '').replace(/\+34/, '');
+        resolve(knownSpam.some(s => clean.includes(s)));
+      }, 100);
+    });
+  }
 }

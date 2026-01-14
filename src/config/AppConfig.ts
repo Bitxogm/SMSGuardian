@@ -25,21 +25,28 @@ export const APP_CONFIG = {
 };
 
 export const SUSPICIOUS_PATTERNS = [
-  /urgent|urgente|immediate|inmediato/gi,
-  /click|pincha|haz.clic/gi,
+  /urgent|urgente|immediate|inmediato|ahora|ya|hoy|today/gi,
+  /click|pincha|haz.clic|acceda|ingrese/gi,
   /free|gratis|premio|ganado/gi,
   /verify|verifica|confirma|actualiza/gi,
-  /suspend|suspender|block|bloquear/gi,
-  /bank|banco|credit|credito|card|tarjeta/gi,
-  /password|contraseña|pin|codigo/gi,
-  /expire|expira|caducad|vence/gi,
+  /suspend|suspender|block|bloquear|restringida|bloqueada|vence/gi,
+  /bank|banco|credit|credito|card|tarjeta|cuenta|transferencia|importe|compra|bizum/gi,
+  /password|contraseña|pin|codigo|utiliza.el.codigo/gi,
+  /expire|expira|caducad|caduca/gi,
   /90[0-9]{7}|80[0-9]{7}/g, // Premium numbers
+  /nuca.lo.compartas|no.reconoce.esta.operacion|llame.al/gi,
+  /bbva|santander|caixabank|sabadell|bankinter|abanca|unicaja/gi,
+  // NEW: Logistics & Government
+  /paquete|entrega|suspendida|casa|direccion|incompleta|envio|aduanas|seur|correos|fedex|dhl/gi,
+  /aeat|hacienda|dgt|multa|estacionamiento|ilegal|devolucion|reembolso|pago.requerido/gi,
+  // NEW: Family Scams
+  /mama|papa|movil|roto|numero.nuevo|dinero|pago.urgente/gi,
 ];
 
 export const SUSPICIOUS_DOMAINS = [
-  '.tk', '.ml', '.ga', '.cf', '.click', '.download'
+  '.tk', '.ml', '.ga', '.cf', '.click', '.download', '.top', '.xyz', '.site', '.online', '.link'
 ];
 
 export const URL_SHORTENERS = [
-  'bit.ly', 'tinyurl.com', 't.co', 'goo.gl', 'short.link'
+  'bit.ly', 'tinyurl.com', 't.co', 'goo.gl', 'short.link', 'bit.do', 't.ly', 'is.gd', 'buff.ly'
 ];
