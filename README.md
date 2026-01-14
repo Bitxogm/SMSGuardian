@@ -8,20 +8,22 @@ SMSGuardian es una aplicación de seguridad avanzada para Android construida con
 ## 🚀 Características Principales
 
 ### 1. 🧠 Análisis Híbrido de Amenazas (Hybrid Threat Engine)
-Nuestro motor de análisis de URLs (`URLThreatAnalyzer`) combina lo mejor de dos mundos para equilibrar privacidad y seguridad:
+Nuestro motor de análisis (`SMSAnalysisService` y `URLThreatAnalyzer`) combina lo mejor de dos mundos para equilibrar privacidad y seguridad:
 
 *   **🟢 Fase 1: Whitelist Local (Privacidad Total)**
     *   Validación instantánea de dominios oficiales bancarios y de servicios (Google, PayPal, Santander, Hacienda, etc.).
     *   **Beneficio**: Tus mensajes seguros NO salen de tu dispositivo.
 
-*   **🟡 Fase 2: Heurística Avanzada (Offline)**
-    *   Detecta patrones de suplantación (ej: `google-verify.com` vs `google.com`).
-    *   Bloquea acortadores de riesgo (`bit.ly`, `tinyurl`) y TLDs sospechosos (`.tk`, `.xyz`).
-    *   Analiza el lenguaje (palabras clave de urgencia, multas falsas).
+*   **🟡 Fase 2: Heurística Avanzada y Vishing (Offline)**
+    *   **Vishing Detection**: Extrae y analiza números de teléfono sospechosos dentro del texto del mensaje.
+    *   **Optimización Regional**: Patrones específicos para el mercado español (Bancos, Logística como Correos/Seur, y la estafas de la "familia").
+    *   **Detección de Phishing**: Bloquea acortadores de riesgo (`bit.ly`, `t.xyz`) y TLDs sospechosos.
+    *   **Análisis Psicológico**: Detecta lenguaje de urgencia y manipulación emocional.
 
-*   **🔴 Fase 3: Cloud Verification (API)**
+*   **🔴 Fase 3: Reputation & Cloud Verification (API)**
+    *   Consulta asíncrona de la reputación de los números remitentes y de los números citados en el cuerpo.
     *   Si una URL es sospechosa, consultamos en tiempo real con **VirusTotal** y **Google Safe Browsing**.
-    *   Confirmación definitiva de Malware/Phishing con tasa de acierto del 99.9%.
+
 
 ### 2. ☣️ Cuarentena Inteligente
 *   Los mensajes peligrosos **NUNCA** llegan a tu bandeja de entrada principal.
@@ -60,8 +62,19 @@ npm run android
 
 # Compilar una Release Test (APK firmado para pruebas)
 ./build-fresh.sh
-./build-fresh.sh
 ```
+
+### 🧪 Calidad y Testing
+El proyecto cuenta con una suite de pruebas automatizadas para garantizar la fiabilidad del motor de detección.
+
+```bash
+# Ejecutar todos los tests
+npm test
+
+# Ejecutar tests con cobertura
+npm test -- --coverage
+```
+
 
 ### ⚙️ Configuración del Entorno (API Keys)
 
