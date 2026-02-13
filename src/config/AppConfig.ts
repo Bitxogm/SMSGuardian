@@ -22,7 +22,32 @@ export const APP_CONFIG = {
     patternThreshold: 3, // Number of patterns to trigger spam detection
     quarantineThreshold: 50,
   },
+  // NEW: UI Configuration
+  ui: {
+    showBlockedLinks: true, // Set to true to reveal blocked URLs in Quarantine
+  }
 };
+
+export const WHITELISTED_DOMAINS = [
+  'google.com',
+  'youtube.com',
+  'amazon.com',
+  'facebook.com',
+  'twitter.com',
+  'linkedin.com',
+  'instagram.com',
+  'wikipedia.org',
+  'github.com',
+  'stackoverflow.com',
+  'microsoft.com',
+  'apple.com',
+  'netflix.com',
+  'spotify.com',
+  'whatsapp.com',
+  'telegram.org',
+  'paypal.com', // Be careful with this one, but official domain is safe
+  // Add user's trusted domains here
+];
 
 export const SUSPICIOUS_PATTERNS = [
   /urgent|urgente|immediate|inmediato|ahora|ya|hoy|today/gi,

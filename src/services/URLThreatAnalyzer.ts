@@ -1,4 +1,5 @@
 import { API_KEYS } from "../../env";
+import { WHITELISTED_DOMAINS } from "../config/AppConfig";
 
 export interface URLThreatResult {
   url: string;
@@ -240,6 +241,17 @@ export class URLThreatAnalyzer {
     const domain = this.extractDomain(url);
     const lowerUrl = url.toLowerCase();
     const reasons: string[] = [];
+
+    // 0. CHECK WHITELIST
+    if (WHITELISTED_DOMAINS.includes(domain) || WHITELISTED_DOMAINS.some(d => domain.endsWith('.' + d))) {
+      return {
+        url,
+        isMalicious: false,
+        confidence: 100,
+        source: 'local_whitelist',
+        details: `Domain explicitly whitelisted: ${domain}`
+      };
+    }
 
     // 1. URL Shorteners
     const urlShorteners = ['bit.ly', 'tinyurl.com', 't.co', 'goo.gl', 'short.link'];

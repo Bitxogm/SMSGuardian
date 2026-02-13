@@ -6,3 +6,9 @@ export type TabParamList = {
   Blacklist: undefined;
   Settings: undefined;
 };
+
+export type RootStackParamList = {
+  MainTabs: undefined;
+  AnalysisChat: { phoneNumber: string; messageBody: string };
+};
+

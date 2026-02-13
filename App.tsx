@@ -20,7 +20,7 @@ const App: React.FC = () => {
       await databaseService.initialize();
       // Safe to initialize now as it is a stub
       await ContactsService.initialize();
-      console.log('ContactsService Stub Active');
+      console.log('ContactsService Initialized');
       await SMSInterceptorService.initialize();
       setIsInitialized(true);
     } catch (error) {

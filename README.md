@@ -35,7 +35,12 @@ Nuestro motor de análisis (`SMSAnalysisService` y `URLThreatAnalyzer`) combina 
 *   Posibilidad de mover mensajes sospechosos manualmente a cuarentena para su análisis.
 *   Sistema de notificaciones que respeta tu atención.
 
-### 4. 📋 Gestión de Listas
+### 4. 🤖 Asistente de Seguridad con IA (Gemini) [NUEVO]
+*   **Análisis Conversacional**: ¿Tienes dudas sobre un mensaje? Chatea con nuestra IA integrada (Google Gemini) para entender por qué un SMS es sospechoso.
+*   **Explicaciones Claras**: En lugar de solo decir "es peligroso", el asistente te explica las señales de alerta (urgencia, enlaces extraños, remitente desconocido).
+*   **Privacidad Controlada**: Tú decides qué mensajes compartir con la IA. Solo se envía el contenido del SMS seleccionado al pulsar el botón de análisis.
+
+### 5. 📋 Gestión de Listas
 *   **Lista Blanca (Whitelist)**: Sincronización automática con tus contactos para garantizar que los mensajes de amigos/familia siempre lleguen.
 *   **Lista Negra (Blacklist)**: Bloqueo persistente de remitentes molestos.
 
@@ -46,7 +51,7 @@ Nuestro motor de análisis (`SMSAnalysisService` y `URLThreatAnalyzer`) combina 
 *   **Core**: React Native 0.81 (Architecture: New Architecture enabled).
 *   **Storage**: SQLite (react-native-sqlite-storage) para persistencia segura y rápida.
 *   **Native Modules**: Módulos Android nativos (Java/Kotlin) para interceptación de SMS en segundo plano (`SMSReceiver`, `HeadlessJS`).
-*   **Security**: Integración con APIs de Ciberseguridad (VirusTotal, Google Safe Browsing).
+*   **Security & AI**: Integración con APIs de Ciberseguridad (VirusTotal, Google Safe Browsing) y Google Generative AI (Gemini).
 
 ---
 
@@ -88,6 +93,7 @@ Para que el análisis híbrido funcione al 100% (Consulta a VirusTotal y Google)
 export const API_KEYS = {
   virusTotal: 'TU_CLAVE_DE_VIRUSTOTAL_AQUI', 
   safeBrowsing: 'TU_CLAVE_DE_GOOGLE_SAFE_BROWSING_AQUI',
+  gemini: 'TU_CLAVE_DE_GOOGLE_GEMINI_AQUI', // Requerido para el asistente de IA
   phishTank: 'TU_CLAVE_DE_PHISHTANK_AQUI' // Opcional
 };
 ```
@@ -97,8 +103,9 @@ export const API_KEYS = {
 ### Verificación de Seguridad
 Para probar el motor de análisis:
 1.  Abre la app y ve a la pestaña **Cuarentena**.
-2.  Si la lista está vacía, se inyectarán automáticamente 3 casos de prueba (Malware, Phishing, Seguro).
+2.  Si la lista está vacía, se inyectarán automáticamente 3 mensajes de prueba al pulsar el botón **"⚡ TEST"**.
 3.  Pulsa el botón **"🔍 Escanear"** en cualquiera de ellos para ver el motor híbrido en acción.
+4.  Toca el mensaje para abrir los detalles y pulsa **"🧠 Analizar con Gemini AI"** para probar el asistente.
 
 ---
 

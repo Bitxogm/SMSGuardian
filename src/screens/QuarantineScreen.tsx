@@ -8,11 +8,13 @@ import {
   Alert,
   Modal,
   ScrollView,
+  Linking,
 } from 'react-native';
 import { QuarantineService, QuarantinedSMS } from '../services/QuarantineService';
 import { databaseService } from '../services/DatabaseService';
 import { URLThreatAnalyzer, URLThreatResult } from '../services/URLThreatAnalyzer';
-import { PhoneNumberReputationService, ReputationResult } from '../services/PhoneNumberReputationService';
+import { PhoneNumberReputationService } from '../services/PhoneNumberReputationService';
+import { APP_CONFIG } from '../config/AppConfig';
 
 import { useIsFocused } from '@react-navigation/native';
 
@@ -243,10 +245,10 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
       </Text>
 
       <View style={styles.threatInfo}>
-        <Text style={[styles.threatLevel, {
-          backgroundColor: item.threat_level === 'malicious' ? '#FEE2E2' : '#FEF3E2',
-          color: item.threat_level === 'malicious' ? '#DC2626' : '#D97706'
-        }]}>
+        <Text style={[
+          styles.threatLevel,
+          item.threat_level === 'malicious' ? styles.threatLevelMalicious : styles.threatLevelWarning
+        ]}>
           {item.threat_level}
         </Text>
         <Text style={styles.tapToReview}>Toca para revisar</Text>
@@ -269,7 +271,7 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
     };
   };
 
-  const PreviewModal = () => (
+  const renderPreviewModal = () => (
     <Modal
       visible={showPreview}
       animationType="slide"
@@ -288,10 +290,10 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
         </View>
 
         {selectedSMS && (
-          <ScrollView style={styles.smsDetails} contentContainerStyle={{ paddingBottom: 20 }}>
+          <ScrollView style={styles.smsDetails} contentContainerStyle={styles.scrollViewContent}>
             <Text style={styles.detailLabel}>Número:</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
-              <Text style={[styles.detailValue, { marginRight: 8 }]}>{selectedSMS.phone_number}</Text>
+            <View style={styles.detailsContainer}>
+              <Text style={[styles.detailValue, styles.detailValueRight]}>{selectedSMS.phone_number}</Text>
               {renderReputationBadge(selectedSMS.phone_number)}
             </View>
 
@@ -301,12 +303,21 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
             <Text style={styles.detailLabel}>Contenido (vista previa segura):</Text>
             <View style={styles.safePreview}>
               <Text style={styles.safePreviewText}>
-                {selectedSMS.message_content.replace(
-                  /(https?:\/\/[^\s]+)/gi,
-                  '[ENLACE BLOQUEADO]'
-                )}
+                {APP_CONFIG.ui.showBlockedLinks
+                  ? selectedSMS.message_content
+                  : selectedSMS.message_content.replace(
+                    /(https?:\/\/[^\s]+)/gi,
+                    '[ENLACE BLOQUEADO]'
+                  )
+                }
               </Text>
             </View>
+
+            {APP_CONFIG.ui.showBlockedLinks && selectedSMS.analyzed_urls && selectedSMS.analyzed_urls.length > 0 && (
+              <View style={styles.warningContainer}>
+                <Text style={styles.warningText}>⚠️ PRECAUCIÓN: Los enlaces son visibles pero podrían ser peligrosos. No hagas clic si no estás seguro.</Text>
+              </View>
+            )}
 
             {selectedSMS.analyzed_urls && selectedSMS.analyzed_urls.length > 0 && (
               <>
@@ -365,6 +376,70 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
                 </Text>
               </View>
             )}
+
+            {isAnalyzing && (
+              <View style={styles.analyzingIndicator}>
+                <Text style={styles.analyzingText}>
+                  🔍 Consultando servicios de seguridad...
+                </Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={styles.chatButton}
+              onPress={() => {
+                setShowPreview(false); // Close preview
+                // @ts-ignore - We know navigation exists
+                navigation.navigate('AnalysisChat', {
+                  phoneNumber: selectedSMS.phone_number,
+                  messageBody: selectedSMS.message_content
+                });
+              }}
+            >
+              <Text style={styles.chatButtonText}>🧠 Analizar con Gemini AI</Text>
+            </TouchableOpacity>
+
+            <View style={styles.webSearchContainer}>
+              <Text style={styles.detailLabel}>🔎 Investigar Número en la Web:</Text>
+              <Text style={styles.helperText}>Consulta bases de datos externas de spam:</Text>
+              <View style={styles.webButtonsRow}>
+                <TouchableOpacity
+                  style={[styles.webButton, styles.buttonGoogle]}
+                  onPress={() => {
+                    const url = `https://www.google.com/search?q=%22${selectedSMS.phone_number}%22`;
+                    Alert.alert('Abrir Navegador', '¿Buscar este número en Google?', [
+                      { text: 'Cancelar', style: 'cancel' },
+                      { text: 'Abrir', onPress: () => Linking.openURL(url) }
+                    ]);
+                  }}
+                >
+                  <Text style={styles.webButtonText}>Google</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.webButton, styles.buttonListaSpam]}
+                  onPress={() => {
+                    const clean = selectedSMS.phone_number.replace(/\s/g, '').replace('+', '');
+                    const url = `https://www.listaspam.com/busca/${clean}`;
+                    Linking.openURL(url).catch(err => console.error("Couldn't load page", err));
+                  }}
+                >
+                  <Text style={styles.webButtonText}>ListaSpam</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.webButton, styles.buttonTellows]}
+                  onPress={() => {
+                    const clean = selectedSMS.phone_number.replace(/\s/g, '');
+                    // Tellows ES format
+                    const url = `https://www.tellows.es/num/${clean}`;
+                    Linking.openURL(url).catch(err => console.error("Couldn't load page", err));
+                  }}
+                >
+                  <Text style={styles.webButtonText}>Tellows.es</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </ScrollView>
         )}
 
@@ -372,28 +447,28 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
 
         <View style={styles.actionButtons}>
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: '#DC2626' }]}
+            style={[styles.actionButton, styles.actionButtonDelete]}
             onPress={() => handleUserAction('deleted')}
           >
             <Text style={styles.actionButtonText}>Eliminar</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: '#7C2D12' }]}
+            style={[styles.actionButton, styles.actionButtonBlock]}
             onPress={() => handleUserAction('blocked_number')}
           >
             <Text style={styles.actionButtonText}>Bloquear N°</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: '#2563EB' }]}
+            style={[styles.actionButton, styles.actionButtonScan]}
             onPress={handleScanAll}
           >
             <Text style={styles.actionButtonText}>🔍 Escanear</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: '#059669' }]}
+            style={[styles.actionButton, styles.actionButtonSafe]}
             onPress={() => handleUserAction('approved')}
           >
             <Text style={styles.actionButtonText}>Es Seguro</Text>
@@ -406,9 +481,9 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flex: 1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <TouchableOpacity onPress={onNavigateBack} style={{ marginRight: 16 }}>
+        <View style={styles.headerRow}>
+          <View style={styles.headerLeft}>
+            <TouchableOpacity onPress={onNavigateBack} style={styles.backButtonContainer}>
               <Text style={styles.backButton}>← Volver</Text>
             </TouchableOpacity>
             <View>
@@ -421,13 +496,7 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
 
           {/* Dedicated Test Data Button */}
           <TouchableOpacity
-            style={{
-              padding: 8,
-              backgroundColor: '#FEF3C7',
-              borderRadius: 8,
-              borderWidth: 1,
-              borderColor: '#F59E0B'
-            }}
+            style={styles.testButton}
             onPress={async () => {
               try {
                 await databaseService.addTestQuarantineMessages();
@@ -438,7 +507,7 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
               }
             }}
           >
-            <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#B45309' }}>⚡ TEST</Text>
+            <Text style={styles.testButtonText}>⚡ TEST</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -452,7 +521,7 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
         onRefresh={loadQuarantinedSMS}
       />
 
-      <PreviewModal />
+      {renderPreviewModal()}
     </View>
   );
 };
@@ -692,5 +761,133 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 'bold',
     color: '#374151',
+  },
+  webSearchContainer: {
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 12,
+  },
+  webButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  webButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.41,
+    elevation: 2,
+  },
+  webButtonText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 12,
+  },
+  chatButton: {
+    marginTop: 16,
+    backgroundColor: '#8B5CF6', // Violet/Purple for AI
+    padding: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  chatButtonText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  detailsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  detailValueRight: {
+    marginRight: 8,
+  },
+  warningContainer: {
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  warningText: {
+    fontSize: 12,
+    color: '#B91C1C',
+    fontWeight: 'bold',
+  },
+  buttonGoogle: {
+    backgroundColor: '#4285F4',
+  },
+  buttonListaSpam: {
+    backgroundColor: '#FF6F00',
+  },
+  buttonTellows: {
+    backgroundColor: '#5D9C42',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flex: 1,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backButtonContainer: {
+    marginRight: 16,
+  },
+  testButton: {
+    padding: 8,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+  },
+  testButtonText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#B45309',
+  },
+  scrollViewContent: {
+    paddingBottom: 20,
+  },
+  actionButtonDelete: {
+    backgroundColor: '#DC2626',
+  },
+  actionButtonBlock: {
+    backgroundColor: '#7C2D12',
+  },
+  actionButtonScan: {
+    backgroundColor: '#2563EB',
+  },
+  actionButtonSafe: {
+    backgroundColor: '#059669',
+  },
+  threatLevelMalicious: {
+    backgroundColor: '#FEE2E2',
+    color: '#DC2626',
+  },
+  threatLevelWarning: {
+    backgroundColor: '#FEF3E2',
+    color: '#D97706',
   },
 });
