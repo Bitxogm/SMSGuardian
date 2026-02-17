@@ -68,8 +68,8 @@ export const AnalysisChatScreen = () => {
         parts: [{ text: response }]
       });
 
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo conectar con Gemini AI.');
+    } catch (error: any) {
+      Alert.alert('Error de Conexión', `Detalles: ${error.message || 'Error desconocido'}`);
       console.error(error);
     } finally {
       setIsLoading(false);

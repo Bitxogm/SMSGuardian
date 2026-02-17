@@ -6,22 +6,22 @@ export interface ChatMessage {
 }
 
 export class GeminiService {
-  private static readonly API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+  private static readonly API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 
   static async analyzeSMS(phoneNumber: string, messageBody: string): Promise<string> {
     const prompt = `
-      Act as a cybersecurity expert analyzing an SMS message.
+      Actúa como un experto en ciberseguridad analizando un mensaje SMS.
       
-      Sender: ${phoneNumber}
-      Message: "${messageBody}"
+      Remitente: ${phoneNumber}
+      Mensaje: "${messageBody}"
       
-      Task:
-      1. Analyze the message for signs of phishing, scams (smishing), or social engineering.
-      2. Identify any suspicious patterns (urgency, spoofing, etc.).
-      3. Provide a concise safety assessment (Safe, Suspicious, or Dangerous) and the reason why.
-      4. If there are links, assess their potential risk (but do not click them).
+      Tarea:
+      1. Analiza el mensaje en busca de señales de phishing, estafas (smishing) o ingeniería social.
+      2. Identifica patrones sospechosos (urgencia, suplantación, etc.).
+      3. Proporciona una evaluación de seguridad concisa (Seguro, Sospechoso o Peligroso) y explica por qué.
+      4. Si hay enlaces, evalúa su riesgo potencial (pero no hagas clic en ellos).
       
-      Keep the response short and helpful for a mobile user.
+      IMPORTANTE: Responde siempre en español (Castellano). Mantén la respuesta corta y útil para un usuario de móvil.
     `;
 
     return this.sendMessage(prompt);
@@ -52,8 +52,14 @@ export class GeminiService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Gemini API Error: ${errorData.error?.message || response.statusText}`);
+        let errorMessage = response.statusText;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error?.message || errorMessage;
+        } catch (e) {
+          // Fallback if not JSON
+        }
+        throw new Error(`Gemini API Error (${response.status}): ${errorMessage}`);
       }
 
       const data = await response.json();
