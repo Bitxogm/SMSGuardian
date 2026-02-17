@@ -16,7 +16,7 @@ import { URLThreatAnalyzer, URLThreatResult } from '../services/URLThreatAnalyze
 import { PhoneNumberReputationService } from '../services/PhoneNumberReputationService';
 import { APP_CONFIG } from '../config/AppConfig';
 
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 
 interface Props {
   onNavigateBack?: () => void;
@@ -31,6 +31,7 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
   const modalTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isFocused = useIsFocused(); // Hook to detect focus
+  const navigation = useNavigation<any>(); // Initializing navigation hook
 
   useEffect(() => {
     if (isFocused) {
