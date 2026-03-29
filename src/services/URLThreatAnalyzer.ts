@@ -1,5 +1,6 @@
 import { API_KEYS } from "../../env";
-import { WHITELISTED_DOMAINS } from "../config/AppConfig";
+import { WHITELISTED_DOMAINS, URL_SHORTENERS } from "../config/AppConfig";
+import { extractDomain } from "../utils/urlUtils";
 
 export interface URLThreatResult {
   url: string;
@@ -238,7 +239,7 @@ export class URLThreatAnalyzer {
 
   private static quickLocalAnalysis(url: string): URLThreatResult {
     let suspiciousScore = 0;
-    const domain = this.extractDomain(url);
+    const domain = extractDomain(url);
     const lowerUrl = url.toLowerCase();
     const reasons: string[] = [];
 
@@ -254,8 +255,7 @@ export class URLThreatAnalyzer {
     }
 
     // 1. URL Shorteners
-    const urlShorteners = ['bit.ly', 'tinyurl.com', 't.co', 'goo.gl', 'short.link'];
-    const foundShorteners = urlShorteners.filter(shortener => lowerUrl.includes(shortener));
+    const foundShorteners = URL_SHORTENERS.filter(shortener => lowerUrl.includes(shortener));
     if (foundShorteners.length > 0) {
       suspiciousScore += 50;
       reasons.push(`URL shortener: ${foundShorteners.join(', ')}`);
@@ -339,20 +339,6 @@ export class URLThreatAnalyzer {
         `${reasons.join(', ')} (Score: ${suspiciousScore})` :
         `No suspicious patterns found (Score: ${suspiciousScore})`
     };
-  }
-
-  private static extractDomain(url: string): string {
-    try {
-      let cleanUrl = url.toLowerCase();
-      cleanUrl = cleanUrl.replace(/^https?:\/\//, '');
-      cleanUrl = cleanUrl.replace(/^www\./, '');
-      cleanUrl = cleanUrl.split('/')[0];
-      cleanUrl = cleanUrl.split('?')[0];
-      cleanUrl = cleanUrl.split('#')[0];
-      return cleanUrl;
-    } catch (error) {
-      return url.toLowerCase();
-    }
   }
 
   private static isIPAddress(domain: string): boolean {

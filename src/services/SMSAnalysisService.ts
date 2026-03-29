@@ -1,4 +1,5 @@
 import { PhoneNumberReputationService, ReputationResult } from './PhoneNumberReputationService';
+import { extractDomain } from '../utils/urlUtils';
 import { ContactsService } from './ContactsService';
 import { databaseService } from './DatabaseService';
 import { APP_CONFIG, SUSPICIOUS_PATTERNS, URL_SHORTENERS } from '../config/AppConfig';
@@ -240,7 +241,7 @@ export class SMSAnalysisService {
 
     for (const url of urls) {
       // Check for URL shorteners
-      const domain = this.extractDomain(url);
+      const domain = extractDomain(url);
       if (URL_SHORTENERS.includes(domain)) {
         score += 30; // High suspicion for shorteners
         console.log(`Suspicious: URL shortener detected (${domain})`);
@@ -262,27 +263,6 @@ export class SMSAnalysisService {
     }
 
     return Math.min(score, 80);
-  }
-
-  private static extractDomain(url: string): string {
-    try {
-      // Simple regex-based domain extraction for React Native
-      let cleanUrl = url.toLowerCase();
-
-      // Remove protocol
-      cleanUrl = cleanUrl.replace(/^https?:\/\//, '');
-      // Remove www
-      cleanUrl = cleanUrl.replace(/^www\./, '');
-      // Remove path and query params
-      cleanUrl = cleanUrl.split('/')[0];
-      cleanUrl = cleanUrl.split('?')[0];
-
-      return cleanUrl;
-    } catch (error) {
-      // Fallback extraction
-      const match = url.match(/(?:https?:\/\/)?(?:www\.)?([^/\s?]+)/);
-      return match ? match[1].toLowerCase() : url.toLowerCase();
-    }
   }
 
   static async logAnalysis(
