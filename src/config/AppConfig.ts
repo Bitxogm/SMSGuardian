@@ -60,10 +60,10 @@ export const SUSPICIOUS_PATTERNS = [
   /expire|expira|caducad|caduca/gi,
   /90[0-9]{7}|80[0-9]{7}/g, // Premium numbers
   /nuca.lo.compartas|no.reconoce.esta.operacion|llame.al/gi,
-  /bbva|santander|caixabank|sabadell|bankinter|abanca|unicaja/gi,
+  /bbva|santander|caixabank|sabadell|bankinter|abanca|unicaja|ing/gi,
   // NEW: Logistics & Government
   /paquete|entrega|suspendida|casa|direccion|incompleta|envio|aduanas|seur|correos|fedex|dhl/gi,
-  /aeat|hacienda|dgt|multa|estacionamiento|ilegal|devolucion|reembolso|pago.requerido/gi,
+  /aeat|hacienda|dgt|multa|estacionamiento|ilegal|devolucion|reembolso|pago.requerido|seguridad.social|tesoreria/gi,
   // NEW: Family Scams
   /mama|papa|movil|roto|numero.nuevo|dinero|pago.urgente/gi,
 ];
