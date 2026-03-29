@@ -269,18 +269,7 @@ export class SMSAnalysisService {
     analysis: Awaited<ReturnType<typeof SMSAnalysisService.analyzeSMS>>,
     smsData: { phoneNumber: string; messageContent: string; timestamp: number }
   ): Promise<void> {
-    if (analysis.shouldQuarantine) {
-      // Usar cuarentena en lugar de blocked_sms
-      const { QuarantineService } = require('./QuarantineService');
-      await QuarantineService.quarantineSMS({
-        phoneNumber: smsData.phoneNumber,
-        messageContent: smsData.messageContent,
-        timestamp: smsData.timestamp || Date.now(),
-        reason: analysis.reason,
-        threatLevel: analysis.threatLevel,
-        urls: this.extractURLs(smsData.messageContent)
-      });
-    } else if (analysis.shouldBlock) {
+    if (analysis.shouldBlock) {
       // Solo bloquear si es realmente malicioso
       const smsMessage: Omit<SMSMessage, 'id'> = {
         phoneNumber: smsData.phoneNumber,
@@ -293,6 +282,17 @@ export class SMSAnalysisService {
         analyzedUrls: this.extractURLs(smsData.messageContent)
       };
       await databaseService.logBlockedSMS(smsMessage);
+    } else if (analysis.shouldQuarantine) {
+      // Usar cuarentena en lugar de blocked_sms
+      const { QuarantineService } = require('./QuarantineService');
+      await QuarantineService.quarantineSMS({
+        phoneNumber: smsData.phoneNumber,
+        messageContent: smsData.messageContent,
+        timestamp: smsData.timestamp || Date.now(),
+        reason: analysis.reason,
+        threatLevel: analysis.threatLevel,
+        urls: this.extractURLs(smsData.messageContent)
+      });
     }
   }
 
