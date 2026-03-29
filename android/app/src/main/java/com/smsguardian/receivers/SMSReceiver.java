@@ -17,14 +17,6 @@ public class SMSReceiver extends BroadcastReceiver {
         if ("android.provider.Telephony.SMS_RECEIVED".equals(intent.getAction()) || "android.provider.Telephony.SMS_DELIVER".equals(intent.getAction())) {
             Log.e(TAG, "SMS_RECEIVED intent received - DEBUG MODE");
             
-            // DEBUG TOAST (Re-enabled for diagnosis)
-            android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
-            handler.post(new Runnable() {
-                public void run() {
-                    android.widget.Toast.makeText(context, "Debug: SMS Received by Native Receiver", android.widget.Toast.LENGTH_LONG).show();
-                }
-            });
-
             Bundle bundle = intent.getExtras();
             
             if (bundle != null) {
