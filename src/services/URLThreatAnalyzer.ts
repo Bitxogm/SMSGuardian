@@ -1,6 +1,6 @@
 import { API_KEYS } from "../../env";
 import { WHITELISTED_DOMAINS, URL_SHORTENERS } from "../config/AppConfig";
-import { extractDomain } from "../utils/urlUtils";
+import { extractDomain, hasUnicodeHomoglyph, hasPunycode } from "../utils/urlUtils";
 
 export interface URLThreatResult {
   url: string;
@@ -269,7 +269,13 @@ export class URLThreatAnalyzer {
       reasons.push(`Suspicious TLD: ${foundTlds.join(', ')}`);
     }
 
-    // 3. Brand impersonation
+    // 3. Unicode homoglyph / Punycode detection
+    if (hasUnicodeHomoglyph(domain) || hasPunycode(domain)) {
+      suspiciousScore += 70;
+      reasons.push('Posible ataque homoglyph/Punycode en dominio');
+    }
+
+    // 4. Brand impersonation
     interface BrandRule { pattern: RegExp; name: string; official: string[] }
     const brands: BrandRule[] = [
       { pattern: /s[a4@]nt[a4@]nder/i, name: 'santander', official: ['santander.com', 'bancosantander.es', 'santander.es'] },

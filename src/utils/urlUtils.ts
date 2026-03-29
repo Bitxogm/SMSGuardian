@@ -22,3 +22,19 @@ export function extractDomain(url: string): string {
     return match ? match[1].toLowerCase() : url.toLowerCase();
   }
 }
+
+/**
+ * Returns true if the domain contains non-ASCII characters (Unicode homoglyph attack).
+ * Example: раypal.com (with Cyrillic 'а') → true
+ */
+export function hasUnicodeHomoglyph(domain: string): boolean {
+  return /[^\x00-\x7F]/.test(domain);
+}
+
+/**
+ * Returns true if the domain contains a Punycode ACE prefix (IDN homograph attack).
+ * Example: xn--aypal-4we.com → true
+ */
+export function hasPunycode(domain: string): boolean {
+  return domain.includes('xn--');
+}
