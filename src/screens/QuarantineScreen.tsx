@@ -51,13 +51,6 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
       let messages = await QuarantineService.getQuarantinedSMS();
       console.log('Quarantined messages loaded:', messages.length);
 
-      // AUTO-INJECT TEST DATA if empty (for debugging)
-      if (messages.length === 0) {
-        console.log('Empty quarantine, injecting test data...');
-        await databaseService.addTestQuarantineMessages();
-        messages = await QuarantineService.getQuarantinedSMS();
-      }
-
       setQuarantinedSMS(messages);
     } catch (error) {
       console.error('Error loading quarantined SMS:', error);
