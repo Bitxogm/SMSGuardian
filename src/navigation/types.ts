@@ -4,7 +4,7 @@ export type TabParamList = {
   Quarantine: undefined;
   Whitelist: undefined;
   Blacklist: undefined;
-  Settings: undefined;
+  Blocked: undefined;
 };
 
 export type RootStackParamList = {

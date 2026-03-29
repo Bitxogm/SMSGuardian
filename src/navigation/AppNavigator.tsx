@@ -8,17 +8,12 @@ import { WhitelistScreen } from '../screens/WhitelistScreen';
 import { BlacklistScreen } from '../screens/BlacklistScreen';
 import { QuarantineScreen } from '../screens/QuarantineScreen';
 import { AnalysisChatScreen } from '../screens/AnalysisChatScreen';
+import { BlockedSMSScreen } from '../screens/BlockedSMSScreen';
 import { TabParamList, RootStackParamList } from './types';
-import { Text, View, StyleSheet } from 'react-native';
+import { Text } from 'react-native';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
-
-const SettingsScreenPlaceholder = () => (
-  <View style={styles.placeholderContainer}>
-    <Text>Configuración (Próximamente)</Text>
-  </View>
-);
 
 const TabBarIcon = ({ routeName, color, size }: { routeName: string, color: string, size: number }) => {
   let iconName = '❓';
@@ -27,7 +22,6 @@ const TabBarIcon = ({ routeName, color, size }: { routeName: string, color: stri
   else if (routeName === 'Whitelist') iconName = '✅';
   else if (routeName === 'Blacklist') iconName = '⛔';
   else if (routeName === 'Quarantine') iconName = '⚠️';
-  else if (routeName === 'Settings') iconName = '⚙️';
 
   return <Text style={{ fontSize: size, color }}>{iconName}</Text>;
 };
@@ -51,7 +45,16 @@ const MainTabs = () => {
       <Tab.Screen name="Quarantine" component={QuarantineScreen} />
       <Tab.Screen name="Whitelist" component={WhitelistScreen} />
       <Tab.Screen name="Blacklist" component={BlacklistScreen} />
-      <Tab.Screen name="Settings" component={SettingsScreenPlaceholder} />
+      <Tab.Screen
+        name="Blocked"
+        component={BlockedSMSScreen}
+        options={{
+          title: 'Bloqueados',
+          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
+            <Text style={{ fontSize: size, color }}>🚫</Text>
+          ),
+        }}
+      />
     </Tab.Navigator>
   );
 };
@@ -74,13 +77,5 @@ const AppNavigator = () => {
     </NavigationContainer>
   );
 };
-
-const styles = StyleSheet.create({
-  placeholderContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-});
 
 export default AppNavigator;
