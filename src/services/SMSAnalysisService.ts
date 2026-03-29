@@ -12,7 +12,7 @@ export class SMSAnalysisService {
     reason: string;
     threatLevel: 'safe' | 'suspicious' | 'malicious';
     suspiciousScore: number;
-    reputationDetails?: any; // New field for UI
+    reputationDetails?: { sender: ReputationResult; bodyNumbers: ReputationResult[] };
   }> {
 
     try {
@@ -285,7 +285,10 @@ export class SMSAnalysisService {
     }
   }
 
-  static async logAnalysis(analysis: any, smsData: any): Promise<void> {
+  static async logAnalysis(
+    analysis: Awaited<ReturnType<typeof SMSAnalysisService.analyzeSMS>>,
+    smsData: { phoneNumber: string; messageContent: string; timestamp: number }
+  ): Promise<void> {
     if (analysis.shouldQuarantine) {
       // Usar cuarentena en lugar de blocked_sms
       const { QuarantineService } = require('./QuarantineService');
