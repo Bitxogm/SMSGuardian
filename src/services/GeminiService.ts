@@ -10,18 +10,25 @@ export class GeminiService {
 
   static async analyzeSMS(phoneNumber: string, messageBody: string): Promise<string> {
     const prompt = `
-      Actúa como un experto en ciberseguridad analizando un mensaje SMS.
-      
+      Actúa como un experto en ciberseguridad analizando un SMS recibido en un móvil.
+
       Remitente: ${phoneNumber}
       Mensaje: "${messageBody}"
-      
-      Tarea:
-      1. Analiza el mensaje en busca de señales de phishing, estafas (smishing) o ingeniería social.
-      2. Identifica patrones sospechosos (urgencia, suplantación, etc.).
-      3. Proporciona una evaluación de seguridad concisa (Seguro, Sospechoso o Peligroso) y explica por qué.
-      4. Si hay enlaces, evalúa su riesgo potencial (pero no hagas clic en ellos).
-      
-      IMPORTANTE: Responde siempre en español (Castellano). Mantén la respuesta corta y útil para un usuario de móvil.
+
+      Responde en español (castellano), en un máximo de 120 palabras, con este formato exacto:
+
+      **VEREDICTO** — razón en 5 palabras
+      - Punto clave
+      - Punto clave
+      - Punto clave (opcional)
+      Recomendación: acción concreta para el usuario.
+
+      Reglas:
+      - VEREDICTO es exactamente uno de: LEGÍTIMO, SOSPECHOSO o PELIGROSO.
+      - Usa 2 o 3 bullets centrados en señales de phishing, smishing o ingeniería social (urgencia, suplantación, enlaces, petición de datos o pagos).
+      - Si hay enlaces, evalúa su riesgo sin visitarlos.
+      - Si el mensaje contiene un número de teléfono, dedica un bullet a ese número: "Número [número] detectado en el mensaje: verifica su reputación antes de llamar."
+      - Sin introducciones ni despedidas.
     `;
 
     return this.sendMessage(prompt);
