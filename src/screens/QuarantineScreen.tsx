@@ -502,21 +502,23 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
             </View>
           </View>
 
-          {/* Dedicated Test Data Button */}
-          <TouchableOpacity
-            style={styles.testButton}
-            onPress={async () => {
-              try {
-                await databaseService.addTestQuarantineMessages();
-                await loadQuarantinedSMS();
-                Alert.alert('Datos de Prueba', '✅ Se han inyectado 3 mensajes de prueba.');
-              } catch (e) {
-                Alert.alert('Error', 'No se pudieron inyectar los datos.');
-              }
-            }}
-          >
-            <Text style={styles.testButtonText}>⚡ TEST</Text>
-          </TouchableOpacity>
+          {/* Test data button: development builds only */}
+          {__DEV__ && (
+            <TouchableOpacity
+              style={styles.testButton}
+              onPress={async () => {
+                try {
+                  await databaseService.addTestQuarantineMessages();
+                  await loadQuarantinedSMS();
+                  Alert.alert('Datos de Prueba', '✅ Se han inyectado 3 mensajes de prueba.');
+                } catch (e) {
+                  Alert.alert('Error', 'No se pudieron inyectar los datos.');
+                }
+              }}
+            >
+              <Text style={styles.testButtonText}>⚡ TEST</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
