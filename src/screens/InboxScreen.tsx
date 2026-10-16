@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, DeviceEventEmitter } from 'react-native';
 import { databaseService } from '../services/DatabaseService';
+import { SMSAnalysisService } from '../services/SMSAnalysisService';
 import { useEffect, useState } from 'react';
 
 interface InboxMessage {
@@ -48,7 +49,7 @@ export const InboxScreen: React.FC = () => {
                 reason: 'Manual Quarantine',
                 threatLevel: 'suspicious', // User manual action implies suspicion
                 timestamp: msg.timestamp,
-                urls: [] // Analysis will extract these later
+                urls: SMSAnalysisService.extractURLs(msg.message_content)
               });
 
               // 2. Remove from Inbox

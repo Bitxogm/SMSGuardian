@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { QuarantineService, QuarantinedSMS } from '../services/QuarantineService';
 import { databaseService } from '../services/DatabaseService';
+import { SMSAnalysisService } from '../services/SMSAnalysisService';
 import { URLThreatAnalyzer, URLThreatResult } from '../services/URLThreatAnalyzer';
 import { PhoneNumberReputationService } from '../services/PhoneNumberReputationService';
 import { APP_CONFIG } from '../config/AppConfig';
@@ -21,6 +22,12 @@ import { useIsFocused, useNavigation } from '@react-navigation/native';
 interface Props {
   onNavigateBack?: () => void;
 }
+
+// Rows quarantined manually before A1 were stored with analyzed_urls = []
+const getDetectedURLs = (sms: QuarantinedSMS): string[] =>
+  sms.analyzed_urls && sms.analyzed_urls.length > 0
+    ? sms.analyzed_urls
+    : SMSAnalysisService.extractURLs(sms.message_content);
 
 export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
   const [quarantinedSMS, setQuarantinedSMS] = useState<QuarantinedSMS[]>([]);
@@ -32,6 +39,7 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
 
   const isFocused = useIsFocused(); // Hook to detect focus
   const navigation = useNavigation<any>(); // Initializing navigation hook
+  const detectedURLs = selectedSMS ? getDetectedURLs(selectedSMS) : [];
 
   useEffect(() => {
     if (isFocused) {
@@ -157,7 +165,7 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
   };
 
   const handleScanAll = async () => {
-    if (!selectedSMS || !selectedSMS.analyzed_urls || selectedSMS.analyzed_urls.length === 0) {
+    if (detectedURLs.length === 0) {
       Alert.alert('Nada que escanear', 'Este mensaje no contiene URLs detectadas.');
       return;
     }
@@ -165,7 +173,7 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
     setIsAnalyzing(true);
     let maliciousCount = 0;
 
-    for (const url of selectedSMS.analyzed_urls) {
+    for (const url of detectedURLs) {
       try {
         const result = await URLThreatAnalyzer.analyzeURL(url);
         setUrlAnalysisResults(prev => ({ ...prev, [url]: result }));
@@ -313,16 +321,16 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
               </Text>
             </View>
 
-            {APP_CONFIG.ui.showBlockedLinks && selectedSMS.analyzed_urls && selectedSMS.analyzed_urls.length > 0 && (
+            {APP_CONFIG.ui.showBlockedLinks && detectedURLs.length > 0 && (
               <View style={styles.warningContainer}>
                 <Text style={styles.warningText}>⚠️ PRECAUCIÓN: Los enlaces son visibles pero podrían ser peligrosos. No hagas clic si no estás seguro.</Text>
               </View>
             )}
 
-            {selectedSMS.analyzed_urls && selectedSMS.analyzed_urls.length > 0 && (
+            {detectedURLs.length > 0 && (
               <>
-                <Text style={styles.detailLabel}>URLs detectadas ({selectedSMS.analyzed_urls.length}):</Text>
-                {selectedSMS.analyzed_urls.map((url, index) => {
+                <Text style={styles.detailLabel}>URLs detectadas ({detectedURLs.length}):</Text>
+                {detectedURLs.map((url, index) => {
                   const analysis = urlAnalysisResults[url];
                   const colors = analysis ? getAnalysisStatusColor(analysis) : null;
 
