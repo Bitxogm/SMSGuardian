@@ -89,9 +89,14 @@ export const AnalysisChatScreen = () => {
     setInputText('');
     setIsLoading(true);
 
+    // If the initial analysis failed the history is empty: send the SMS prompt and the question as one user turn
+    const userTurnText = conversationHistory.current.length === 0
+      ? `${GeminiService.buildAnalysisPrompt(phoneNumber, messageBody)}\n\n${userMsg.text}`
+      : userMsg.text;
+
     try {
       // sendMessage appends the user turn to the payload; history only stores completed exchanges
-      const response = await GeminiService.sendMessage(userMsg.text, conversationHistory.current);
+      const response = await GeminiService.sendMessage(userTurnText, conversationHistory.current);
 
       const aiMsg: UIMessage = {
         id: (Date.now() + 1).toString(),
@@ -102,7 +107,7 @@ export const AnalysisChatScreen = () => {
       setMessages(prev => [...prev, aiMsg]);
 
       conversationHistory.current.push(
-        { role: 'user', parts: [{ text: userMsg.text }] },
+        { role: 'user', parts: [{ text: userTurnText }] },
         { role: 'model', parts: [{ text: response }] }
       );
 

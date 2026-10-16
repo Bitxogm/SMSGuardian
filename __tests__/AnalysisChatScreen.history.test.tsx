@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactTestRenderer, { act } from 'react-test-renderer';
-import { Text, TextInput, TouchableOpacity } from 'react-native';
+import { Alert, Text, TextInput, TouchableOpacity } from 'react-native';
 import { AnalysisChatScreen } from '../src/screens/AnalysisChatScreen';
 import { GeminiService } from '../src/services/GeminiService';
 
@@ -81,5 +81,97 @@ describe('AnalysisChatScreen conversation history', () => {
 
     expect(contents.map(turn => turn.role)).toEqual(['user', 'model', 'user']);
     expect(contents.filter(turn => turn.parts[0].text === '¿Tiene enlaces?')).toHaveLength(1);
+  });
+});
+
+describe('AnalysisChatScreen questions after the initial analysis', () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | null = null;
+  let fetchMock: jest.Mock;
+
+  const payloadOfCall = (index: number): Turn[] => JSON.parse(fetchMock.mock.calls[index][1].body).contents;
+
+  const openChat = async () => {
+    await act(async () => {
+      renderer = ReactTestRenderer.create(<AnalysisChatScreen />);
+    });
+    return renderer!.root;
+  };
+
+  const ask = async (root: ReactTestRenderer.ReactTestInstance, question: string) => {
+    await act(async () => {
+      root.findByType(TextInput).props.onChangeText(question);
+    });
+    const send = root
+      .findAllByType(TouchableOpacity)
+      .find(t => t.findAllByType(Text).some(x => x.props.children === 'Enviar'));
+    await act(async () => {
+      await send!.props.onPress();
+    });
+  };
+
+  beforeEach(() => {
+    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    fetchMock = jest.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+  });
+
+  afterEach(async () => {
+    await act(async () => {
+      renderer?.unmount();
+    });
+    renderer = null;
+  });
+
+  describe('when the initial analysis failed', () => {
+    beforeEach(() => {
+      fetchMock
+        .mockRejectedValueOnce(new Error('Network request failed'))
+        .mockResolvedValueOnce(geminiReply('Sí, contiene un enlace.'))
+        .mockResolvedValueOnce(geminiReply('No lo abras.'));
+    });
+
+    it('sends the SMS prompt and the question as a single user turn', async () => {
+      const root = await openChat();
+      await ask(root, '¿Tiene enlaces?');
+
+      const contents = payloadOfCall(1);
+      expect(contents).toHaveLength(1);
+      expect(contents[0].role).toBe('user');
+      expect(contents[0].parts[0].text).toContain(mockBody);
+      expect(contents[0].parts[0].text).toContain(`Remitente: ${mockSender}`);
+      expect(contents[0].parts[0].text).toContain('¿Tiene enlaces?');
+
+      const shownTexts = root.findAllByType(Text).map(t => String(t.props.children));
+      expect(shownTexts).toContain('¿Tiene enlaces?');
+      expect(shownTexts.some(t => t.includes('Actúa como un experto'))).toBe(false);
+    });
+
+    it('keeps the combined turn in history for the next question', async () => {
+      const root = await openChat();
+      await ask(root, '¿Tiene enlaces?');
+      await ask(root, '¿Lo abro?');
+
+      const contents = payloadOfCall(2);
+      expect(contents.map(turn => turn.role)).toEqual(['user', 'model', 'user']);
+      expect(contents[0].parts[0].text).toContain(mockBody);
+      expect(contents[0].parts[0].text).toContain('¿Tiene enlaces?');
+      expect(contents[2].parts[0].text).toBe('¿Lo abro?');
+    });
+  });
+
+  it('keeps the H2 payload when the initial analysis succeeded', async () => {
+    fetchMock
+      .mockResolvedValueOnce(geminiReply('**SOSPECHOSO** — enlace de seguimiento'))
+      .mockResolvedValueOnce(geminiReply('Sí, contiene un enlace.'));
+
+    const root = await openChat();
+    await ask(root, '¿Tiene enlaces?');
+
+    const contents = payloadOfCall(1);
+    expect(contents.map(turn => turn.role)).toEqual(['user', 'model', 'user']);
+    expect(contents[0].parts[0].text).toBe(GeminiService.buildAnalysisPrompt(mockSender, mockBody));
+    expect(contents[1].parts[0].text).toBe('**SOSPECHOSO** — enlace de seguimiento');
+    expect(contents[2].parts[0].text).toBe('¿Tiene enlaces?');
   });
 });
