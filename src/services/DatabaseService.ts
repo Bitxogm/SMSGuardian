@@ -593,7 +593,7 @@ class DatabaseService {
   async getQuarantinedSMS(): Promise<any[]> {
     if (!this.database) return [];
 
-    const query = 'SELECT * FROM quarantined_sms ORDER BY date_quarantined DESC LIMIT 50';
+    const query = 'SELECT * FROM quarantined_sms WHERE is_reviewed = 0 ORDER BY date_quarantined DESC LIMIT 50';
     const [results] = await this.database.executeSql(query);
 
     const messages: any[] = [];
@@ -620,6 +620,12 @@ class DatabaseService {
 
     const query = 'UPDATE quarantined_sms SET is_reviewed = 1, user_action = ? WHERE id = ?';
     await this.database.executeSql(query, [userAction, id]);
+  }
+
+  async deleteQuarantinedSMS(id: number): Promise<void> {
+    if (!this.database) throw new Error('Database not initialized');
+
+    await this.database.executeSql('DELETE FROM quarantined_sms WHERE id = ?', [id]);
   }
   async isNumberBlacklisted(phoneNumber: string): Promise<boolean> {
     if (!this.database) return false;

@@ -47,6 +47,11 @@ export class QuarantineService {
     }
   }
 
+  // Errors propagate so the UI never reports a deletion that did not happen
+  static async deleteQuarantinedSMS(id: number): Promise<void> {
+    await databaseService.deleteQuarantinedSMS(id);
+  }
+
   static async getQuarantinedCount(): Promise<number> {
     try {
       return await databaseService.getQuarantinedCount();

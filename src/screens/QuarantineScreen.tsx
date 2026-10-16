@@ -71,19 +71,25 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
     if (!selectedSMS) return;
 
     try {
-      await QuarantineService.markAsReviewed(selectedSMS.id, action);
-
-      if (action === 'blocked_number') {
-        await databaseService.addSpamNumber(
-          selectedSMS.phone_number,
-          'scam',
-          'manual'
+      if (action === 'deleted') {
+        await QuarantineService.deleteQuarantinedSMS(selectedSMS.id);
+        Alert.alert(
+          'SMS eliminado',
+          'El mensaje se ha eliminado de SMSGuardian. El SMS original en la bandeja del sistema no se modifica.'
         );
-        Alert.alert('Número bloqueado', 'El número ha sido añadido a la lista negra');
-      } else if (action === 'deleted') {
-        Alert.alert('SMS eliminado', 'El mensaje ha sido eliminado de forma segura');
-      } else if (action === 'approved') {
-        Alert.alert('SMS aprobado', 'El mensaje se ha marcado como seguro');
+      } else {
+        await QuarantineService.markAsReviewed(selectedSMS.id, action);
+
+        if (action === 'blocked_number') {
+          await databaseService.addSpamNumber(
+            selectedSMS.phone_number,
+            'scam',
+            'manual'
+          );
+          Alert.alert('Número bloqueado', 'El número ha sido añadido a la lista negra');
+        } else if (action === 'approved') {
+          Alert.alert('SMS aprobado', 'El mensaje se ha marcado como seguro');
+        }
       }
 
       setShowPreview(false);
