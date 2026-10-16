@@ -20,11 +20,28 @@ class DatabaseService {
       });
 
       await this.createTables();
+      await this.purgeDeletedQuarantineOnce();
       await this.loadInitialData();
       console.log('Database initialized successfully');
     } catch (error) {
       console.error('Error initializing database:', error);
       throw error;
+    }
+  }
+
+  // Before B1, "Eliminar" only marked rows as reviewed: remove those leftovers once
+  private async purgeDeletedQuarantineOnce(): Promise<void> {
+    const flag = 'purge_deleted_quarantine_v1';
+    try {
+      if ((await this.getSetting(flag)) === 'done') return;
+
+      const [result] = await this.database!.executeSql(
+        "DELETE FROM quarantined_sms WHERE user_action = 'deleted'"
+      );
+      await this.setSetting(flag, 'done');
+      console.log(`Purged ${result.rowsAffected} deleted quarantine rows`);
+    } catch (error) {
+      console.error('Error purging deleted quarantine rows:', error instanceof Error ? error.message : error);
     }
   }
 
