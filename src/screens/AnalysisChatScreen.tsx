@@ -62,11 +62,11 @@ export const AnalysisChatScreen = () => {
 
       setMessages(prev => [...prev, aiMessage]);
 
-      // Init history
-      conversationHistory.current.push({
-        role: 'model',
-        parts: [{ text: response }]
-      });
+      // Init history with the prompt so follow-up questions still carry the SMS
+      conversationHistory.current.push(
+        { role: 'user', parts: [{ text: GeminiService.buildAnalysisPrompt(phoneNumber, messageBody) }] },
+        { role: 'model', parts: [{ text: response }] }
+      );
 
     } catch (error: any) {
       Alert.alert('Error de Conexión', `Detalles: ${error.message || 'Error desconocido'}`);
@@ -89,13 +89,8 @@ export const AnalysisChatScreen = () => {
     setInputText('');
     setIsLoading(true);
 
-    // Add to history
-    conversationHistory.current.push({
-      role: 'user',
-      parts: [{ text: userMsg.text }]
-    });
-
     try {
+      // sendMessage appends the user turn to the payload; history only stores completed exchanges
       const response = await GeminiService.sendMessage(userMsg.text, conversationHistory.current);
 
       const aiMsg: UIMessage = {
@@ -106,11 +101,10 @@ export const AnalysisChatScreen = () => {
 
       setMessages(prev => [...prev, aiMsg]);
 
-      // Add response to history
-      conversationHistory.current.push({
-        role: 'model',
-        parts: [{ text: response }]
-      });
+      conversationHistory.current.push(
+        { role: 'user', parts: [{ text: userMsg.text }] },
+        { role: 'model', parts: [{ text: response }] }
+      );
 
     } catch (error) {
       Alert.alert('Error', 'Error al enviar mensaje.');

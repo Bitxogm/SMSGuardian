@@ -9,7 +9,11 @@ export class GeminiService {
   private static readonly API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 
   static async analyzeSMS(phoneNumber: string, messageBody: string): Promise<string> {
-    const prompt = `
+    return this.sendMessage(this.buildAnalysisPrompt(phoneNumber, messageBody));
+  }
+
+  static buildAnalysisPrompt(phoneNumber: string, messageBody: string): string {
+    return `
       Actúa como un experto en ciberseguridad analizando un SMS recibido en un móvil.
 
       Remitente: ${phoneNumber}
@@ -30,8 +34,6 @@ export class GeminiService {
       - Si el mensaje contiene un número de teléfono, dedica un bullet a ese número: "Número [número] detectado en el mensaje: verifica su reputación antes de llamar."
       - Sin introducciones ni despedidas.
     `;
-
-    return this.sendMessage(prompt);
   }
 
   static async sendMessage(text: string, history: ChatMessage[] = []): Promise<string> {
