@@ -158,3 +158,23 @@ describe('DatabaseService one-time purge of deleted quarantine rows', () => {
     errorSpy.mockRestore();
   });
 });
+
+describe('DatabaseService inbox writes without an open database', () => {
+  const sms = { phoneNumber: 'Lowi', messageContent: 'Lowi: tu código de verificación es 4821', timestamp: 1760000000000 };
+
+  const freshService = (): typeof databaseService => {
+    let fresh: typeof databaseService;
+    jest.isolateModules(() => {
+      fresh = require('../src/services/DatabaseService').databaseService;
+    });
+    return fresh!;
+  };
+
+  it('addInboxSMS throws', async () => {
+    await expect(freshService().addInboxSMS(sms)).rejects.toThrow('Database not initialized');
+  });
+
+  it('logInbox still resolves without throwing (background callers rely on it)', async () => {
+    await expect(freshService().logInbox(sms)).resolves.toBeUndefined();
+  });
+});

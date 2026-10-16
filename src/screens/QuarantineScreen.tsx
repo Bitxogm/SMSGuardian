@@ -86,6 +86,15 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
           'El mensaje se ha eliminado de SMSGuardian. El SMS original en la bandeja del sistema no se modifica.'
         );
       } else {
+        if (action === 'approved') {
+          // Restore to Inbox first: if this fails the SMS stays in quarantine instead of vanishing
+          await databaseService.addInboxSMS({
+            phoneNumber: selectedSMS.phone_number,
+            messageContent: selectedSMS.message_content,
+            timestamp: selectedSMS.timestamp,
+          });
+        }
+
         await QuarantineService.markAsReviewed(selectedSMS.id, action);
 
         if (action === 'blocked_number') {

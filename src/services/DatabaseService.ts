@@ -656,30 +656,37 @@ class DatabaseService {
     }
   }
 
+  // Strict variant: throws so callers that must not lose the SMS can react
+  async addInboxSMS(sms: { phoneNumber: string, messageContent: string, timestamp: number }): Promise<void> {
+    if (!this.database) throw new Error('Database not initialized');
+
+    // DUPLICATE CHECK: Verify if this message already exists (same content, phone, and similar timestamp)
+    const checkQuery = `
+      SELECT id FROM inbox
+      WHERE phone_number = ?
+      AND message_content = ?
+      AND ABS(timestamp - ?) < 2000
+    `;
+    // Check within 2 seconds window to handle minor timestamp differences or exact matches
+    const [results] = await this.database.executeSql(checkQuery, [sms.phoneNumber, sms.messageContent, sms.timestamp]);
+
+    if (results.rows.length > 0) {
+      console.log('Skipping duplicate SMS log');
+      return;
+    }
+
+    const query = `
+      INSERT INTO inbox (phone_number, message_content, timestamp)
+      VALUES (?, ?, ?)
+    `;
+    await this.database.executeSql(query, [sms.phoneNumber, sms.messageContent, sms.timestamp]);
+    console.log('Logged SMS to Inbox');
+  }
+
   async logInbox(sms: { phoneNumber: string, messageContent: string, timestamp: number }): Promise<void> {
     if (!this.database) return;
     try {
-      // DUPLICATE CHECK: Verify if this message already exists (same content, phone, and similar timestamp)
-      const checkQuery = `
-        SELECT id FROM inbox 
-        WHERE phone_number = ? 
-        AND message_content = ? 
-        AND ABS(timestamp - ?) < 2000 
-      `;
-      // Check within 2 seconds window to handle minor timestamp differences or exact matches
-      const [results] = await this.database.executeSql(checkQuery, [sms.phoneNumber, sms.messageContent, sms.timestamp]);
-
-      if (results.rows.length > 0) {
-        console.log('Skipping duplicate SMS log');
-        return;
-      }
-
-      const query = `
-        INSERT INTO inbox (phone_number, message_content, timestamp)
-        VALUES (?, ?, ?)
-      `;
-      await this.database.executeSql(query, [sms.phoneNumber, sms.messageContent, sms.timestamp]);
-      console.log('Logged SMS to Inbox');
+      await this.addInboxSMS(sms);
     } catch (error) {
       console.error('Error logging to inbox:', error);
     }
