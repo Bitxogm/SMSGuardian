@@ -9,6 +9,7 @@ import {
   Modal,
   ScrollView,
   Linking,
+  DeviceEventEmitter,
 } from 'react-native';
 import { QuarantineService, QuarantinedSMS } from '../services/QuarantineService';
 import { databaseService } from '../services/DatabaseService';
@@ -105,6 +106,7 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
           );
           Alert.alert('Número bloqueado', 'El número ha sido añadido a la lista negra');
         } else if (action === 'approved') {
+          DeviceEventEmitter.emit('STATS_UPDATED');
           Alert.alert('SMS aprobado', 'El mensaje se ha marcado como seguro');
         }
       }

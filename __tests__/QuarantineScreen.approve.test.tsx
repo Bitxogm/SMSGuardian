@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactTestRenderer, { act } from 'react-test-renderer';
-import { Alert, Text, TouchableOpacity } from 'react-native';
+import { Alert, DeviceEventEmitter, Text, TouchableOpacity } from 'react-native';
 import { QuarantineScreen } from '../src/screens/QuarantineScreen';
 import { databaseService } from '../src/services/DatabaseService';
 
@@ -130,5 +130,80 @@ describe('QuarantineScreen review actions and the Inbox', () => {
     await pressReviewAction(label);
 
     expect(inboxRows()).toEqual([]);
+  });
+});
+
+describe('QuarantineScreen STATS_UPDATED after review actions', () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | null = null;
+  let emitSpy: jest.SpyInstance;
+
+  const statsUpdatedCount = () => emitSpy.mock.calls.filter(([event]) => event === 'STATS_UPDATED').length;
+
+  const pressReviewAction = async (label: string) => {
+    await act(async () => {
+      renderer = ReactTestRenderer.create(<QuarantineScreen />);
+    });
+    const root = renderer!.root;
+    const findButton = (text: string) =>
+      root.findAllByType(TouchableOpacity).find(t => t.findAllByType(Text).some(x => x.props.children === text));
+
+    await act(async () => {
+      findButton(SENDER)!.props.onPress();
+    });
+    await act(async () => {
+      await findButton(label)!.props.onPress();
+    });
+  };
+
+  beforeAll(async () => {
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    await databaseService.initialize();
+  });
+
+  beforeEach(async () => {
+    mockState.failInboxInsert = false;
+    mockState.db.exec('DELETE FROM quarantined_sms; DELETE FROM inbox;');
+    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    emitSpy = jest.spyOn(DeviceEventEmitter, 'emit');
+    await databaseService.quarantineSMS({
+      phoneNumber: SENDER,
+      messageContent: BODY,
+      reason: 'Suspicious content',
+      threatLevel: 'suspicious',
+      timestamp: ORIGINAL_TIMESTAMP,
+      urls: [],
+    });
+  });
+
+  afterEach(async () => {
+    await act(async () => {
+      renderer?.unmount();
+    });
+    renderer = null;
+    emitSpy.mockRestore();
+  });
+
+  it('emits STATS_UPDATED once after a successful approval', async () => {
+    await pressReviewAction('Es Seguro');
+
+    expect(statsUpdatedCount()).toBe(1);
+  });
+
+  it('does not emit STATS_UPDATED when the Inbox insert fails', async () => {
+    mockState.failInboxInsert = true;
+
+    await pressReviewAction('Es Seguro');
+
+    expect(statsUpdatedCount()).toBe(0);
+  });
+
+  it.each([
+    ['Eliminar'],
+    ['Bloquear N°'],
+  ])('"%s" does not emit STATS_UPDATED', async label => {
+    await pressReviewAction(label);
+
+    expect(statsUpdatedCount()).toBe(0);
   });
 });
