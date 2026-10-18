@@ -21,6 +21,7 @@ class DatabaseService {
 
       await this.createTables();
       await this.purgeDeletedQuarantineOnce();
+      await this.purgePreloadedContactsOnce();
       await this.loadInitialData();
       console.log('Database initialized successfully');
     } catch (error) {
@@ -42,6 +43,29 @@ class DatabaseService {
       console.log(`Purged ${result.rowsAffected} deleted quarantine rows`);
     } catch (error) {
       console.error('Error purging deleted quarantine rows:', error instanceof Error ? error.message : error);
+    }
+  }
+
+  // Earlier builds preloaded three test contacts into the whitelist, which made those senders
+  // skip analysis. Remove them once, only if number, source and original name all still match.
+  private async purgePreloadedContactsOnce(): Promise<void> {
+    const flag = 'purge_preloaded_contacts_v1';
+    try {
+      if ((await this.getSetting(flag)) === 'done') return;
+
+      // Parameterised so a driver error message never echoes the numbers into the log
+      const [result] = await this.database!.executeSql(
+        `DELETE FROM user_contacts
+         WHERE source = 'preloaded'
+           AND ((phone_number = ? AND contact_name = ?)
+             OR (phone_number = ? AND contact_name = ?)
+             OR (phone_number = ? AND contact_name = ?))`,
+        ['+34600000000', 'Contacto Seguro', '+34700000000', 'Familia', '+34800000000', 'Trabajo']
+      );
+      await this.setSetting(flag, 'done');
+      console.log(`Purged ${result.rowsAffected} preloaded test contacts`);
+    } catch (error) {
+      console.error('Error purging preloaded test contacts:', error instanceof Error ? error.message : error);
     }
   }
 
@@ -155,14 +179,6 @@ class DatabaseService {
       { phone: '+34900000002', type: 'commercial' },
       { phone: '+34911000003', type: 'scam' },
     ];
-
-    // Añadir contactos de ejemplo para testing (solo si no existen)
-    const existingContacts = await this.getWhitelistContactsCount();
-    if (existingContacts === 0) {
-      await this.addContact('+34600000000', 'Contacto Seguro', 'preloaded');
-      await this.addContact('+34700000000', 'Familia', 'preloaded');
-      await this.addContact('+34800000000', 'Trabajo', 'preloaded');
-    }
 
     // Cargar números spam
     for (const spam of spanishSpamNumbers) {
