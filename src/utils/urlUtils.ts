@@ -3,6 +3,8 @@
  * Single source of truth for domain extraction across SMSAnalysisService and URLThreatAnalyzer.
  */
 
+import { URL_SHORTENERS } from '../config/AppConfig';
+
 /**
  * Extracts the bare domain from a URL string.
  * Strips protocol, www, path, query params, and fragment.
@@ -21,6 +23,18 @@ export function extractDomain(url: string): string {
     const match = url.match(/(?:https?:\/\/)?(?:www\.)?([^/\s?#]+)/);
     return match ? match[1].toLowerCase() : url.toLowerCase();
   }
+}
+
+/**
+ * True if host is one of the domains or a subdomain of one.
+ * Exact comparison: "t.co" does not match "about.com", "google.com" does not match "google.com.evil.xyz".
+ */
+export function hostMatches(host: string, domains: readonly string[]): boolean {
+  return domains.some(d => host === d || host.endsWith('.' + d));
+}
+
+export function isShortenerHost(host: string): boolean {
+  return hostMatches(host, URL_SHORTENERS);
 }
 
 /**

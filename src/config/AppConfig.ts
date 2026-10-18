@@ -73,5 +73,6 @@ export const SUSPICIOUS_DOMAINS = [
 ];
 
 export const URL_SHORTENERS = [
-  'bit.ly', 'tinyurl.com', 't.co', 'goo.gl', 'short.link', 'bit.do', 't.ly', 'is.gd', 'buff.ly'
+  'bit.ly', 'tinyurl.com', 't.co', 'goo.gl', 'short.link', 'bit.do', 't.ly', 'is.gd', 'buff.ly',
+  'ourl.jp', 'cutt.ly', 'rb.gy', 'shorturl.at', 'tiny.cc', 'ow.ly', 'rebrand.ly', 's.id', 'v.gd', 'qrco.de'
 ];

@@ -1,8 +1,8 @@
 import { PhoneNumberReputationService, ReputationResult } from './PhoneNumberReputationService';
-import { extractDomain } from '../utils/urlUtils';
+import { extractDomain, isShortenerHost } from '../utils/urlUtils';
 import { ContactsService } from './ContactsService';
 import { databaseService } from './DatabaseService';
-import { APP_CONFIG, SUSPICIOUS_PATTERNS, URL_SHORTENERS } from '../config/AppConfig';
+import { APP_CONFIG, SUSPICIOUS_PATTERNS } from '../config/AppConfig';
 import { URLThreatAnalyzer } from './URLThreatAnalyzer';
 import { SMSMessage } from '../types/SMS';
 
@@ -242,19 +242,20 @@ export class SMSAnalysisService {
     for (const url of urls) {
       // Check for URL shorteners
       const domain = extractDomain(url);
-      if (URL_SHORTENERS.includes(domain)) {
+      if (isShortenerHost(domain)) {
         score += 30; // High suspicion for shorteners
         console.log(`Suspicious: URL shortener detected (${domain})`);
       }
 
       try {
         const analysis = await URLThreatAnalyzer.analyzeURL(url);
-        console.log(`URL Analysis: ${url} - ${analysis.isMalicious ? 'MALICIOUS' : 'SAFE'} (${analysis.confidence}%)`);
+        console.log(`URL Analysis: ${url} - ${analysis.verdict.toUpperCase()}`);
 
-        if (analysis.isMalicious) {
+        // A clean URL adds nothing; an unverified one only carries its local risk points
+        if (analysis.verdict === 'malicious') {
           score += analysis.confidence;
-        } else {
-          score += Math.min(analysis.confidence / 4, 15);
+        } else if (analysis.verdict === 'unverified') {
+          score += analysis.localRiskScore;
         }
       } catch (error) {
         console.error('Error analyzing URL:', error);

@@ -69,7 +69,8 @@ describe('QuarantineScreen URL fallback for records saved without analyzed_urls'
     jest.spyOn(console, 'log').mockImplementation(() => {});
     alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     mockedAnalyzer.analyzeURL.mockResolvedValue({
-      url: TINDER_URL, isMalicious: false, confidence: 0, source: 'local_analysis', details: '',
+      url: TINDER_URL, verdict: 'unverified', respondedSources: [], localRiskScore: 0,
+      isMalicious: false, confidence: 0, source: 'local_analysis', details: '',
     });
   });
 
