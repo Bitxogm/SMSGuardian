@@ -197,3 +197,66 @@ describe('URLThreatAnalyzer official domains', () => {
     expect(result.verdict).toBe('malicious');
   });
 });
+
+describe('URLThreatAnalyzer host normalisation', () => {
+  it.each([
+    ['https://bit.ly:443/x'],
+    ['https://bit.ly./x'],
+    ['https://BIT.LY/x'],
+  ])('%s is a shortener', async url => {
+    const result = await loadAnalyzer({}).analyzeURL(url);
+
+    expect(result.verdict).toBe('unverified');
+    expect(result.reason).toBe('oculta el destino');
+  });
+
+  it('a port does not hide a suspicious TLD', async () => {
+    const result = await loadAnalyzer({}).analyzeURL('https://evil.tk:8080/x');
+
+    expect(result.localRiskScore).toBe(40);
+    expect(result.details).toContain('Suspicious TLD: .tk');
+  });
+
+  it('userinfo does not make a host official: google.com@evil.xyz is evil.xyz', async () => {
+    const result = await loadAnalyzer({}).analyzeURL('https://google.com@evil.xyz/x');
+
+    expect(result.source).not.toBe('local_whitelist');
+    expect(result.verdict).not.toBe('clean');
+  });
+
+  it.each([
+    ['https://google.com:443/x'],
+    ['https://google.com./x'],
+  ])('%s is still official, with no request', async url => {
+    const result = await loadAnalyzer(BOTH_KEYS).analyzeURL(url);
+
+    expect(result.verdict).toBe('clean');
+    expect(result.source).toBe('local_whitelist');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('URLThreatAnalyzer Google user-content hosts', () => {
+  it.each([
+    ['https://sites.google.com/view/x'],
+    ['https://docs.google.com/forms/x'],
+    ['https://drive.google.com/file/x'],
+  ])('%s is not official and goes to the reputation sources', async url => {
+    routes = { [VT]: VT_CLEAN, [GSB]: GSB_CLEAN };
+
+    const result = await loadAnalyzer(BOTH_KEYS).analyzeURL(url);
+
+    expect(result.source).not.toBe('local_whitelist');
+    expect(hostsCalled()).toEqual([VT, GSB]);
+    expect(result.verdict).toBe('clean');
+    expect(result.respondedSources).toEqual(['VirusTotal', 'Google Safe Browsing']);
+    expect(result.localRiskScore).toBe(0);
+  });
+
+  it('mail.google.com is still official', async () => {
+    const result = await loadAnalyzer(BOTH_KEYS).analyzeURL('https://mail.google.com/x');
+
+    expect(result.source).toBe('local_whitelist');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});

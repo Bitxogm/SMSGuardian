@@ -1,5 +1,5 @@
 import { API_KEYS } from "../../env";
-import { WHITELISTED_DOMAINS } from "../config/AppConfig";
+import { WHITELISTED_DOMAINS, USER_CONTENT_HOSTS } from "../config/AppConfig";
 import { extractDomain, hasUnicodeHomoglyph, hasPunycode, hostMatches, isShortenerHost } from "../utils/urlUtils";
 
 // malicious: heuristics or a reputation source flag it.
@@ -305,9 +305,11 @@ export class URLThreatAnalyzer {
 
     // 0. Homoglyph / Punycode se comprueba ANTES de la whitelist: un dominio así nunca es oficial
     const isHomoglyph = hasUnicodeHomoglyph(domain) || hasPunycode(domain);
+    // Contenido publicado por cualquiera (sites/docs/drive…): ni oficial ni suplantación, lo juzgan las fuentes
+    const isUserContent = hostMatches(domain, USER_CONTENT_HOSTS);
 
     // 1. WHITELIST (host exacto o subdominio)
-    if (!isHomoglyph && hostMatches(domain, WHITELISTED_DOMAINS)) {
+    if (!isHomoglyph && !isUserContent && hostMatches(domain, WHITELISTED_DOMAINS)) {
       return this.officialResult(`Domain explicitly whitelisted: ${domain}`);
     }
 
@@ -337,7 +339,7 @@ export class URLThreatAnalyzer {
     const brands: BrandRule[] = [
       { pattern: /s[a4@]nt[a4@]nder/i, name: 'santander', official: ['santander.com', 'bancosantander.es', 'santander.es'] },
       { pattern: /p[a4@]yp[a4@]l/i, name: 'paypal', official: ['paypal.com', 'paypal.me'] },
-      { pattern: /g[o0][o0]gle/i, name: 'google', official: ['google.com', 'google.es', 'accounts.google.com', 'drive.google.com', 'photos.google.com'] },
+      { pattern: /g[o0][o0]gle/i, name: 'google', official: ['google.com', 'google.es', 'accounts.google.com', 'photos.google.com'] },
       { pattern: /[a4@]pple/i, name: 'apple', official: ['apple.com', 'icloud.com'] },
       { pattern: /micr[o0]s[o0]ft/i, name: 'microsoft', official: ['microsoft.com', 'live.com', 'office.com'] },
       { pattern: /dgt/i, name: 'dgt', official: ['dgt.es', 'sede.dgt.gob.es'] },
@@ -345,7 +347,7 @@ export class URLThreatAnalyzer {
       { pattern: /bbv[a4@]/i, name: 'bbva', official: ['bbva.es', 'bbva.com'] }
     ];
 
-    const matchedBrands = brands.filter(item => lowerUrl.match(item.pattern));
+    const matchedBrands = isUserContent ? [] : brands.filter(item => lowerUrl.match(item.pattern));
 
     // FIRST: Check if it's an OFFICIAL domain matching the brand
     const officialMatch = isHomoglyph

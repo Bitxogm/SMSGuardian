@@ -6,23 +6,20 @@
 import { URL_SHORTENERS } from '../config/AppConfig';
 
 /**
- * Extracts the bare domain from a URL string.
- * Strips protocol, www, path, query params, and fragment.
+ * Extracts the normalised host from a URL string, so domain lists can be matched safely.
+ * Lowercases; strips scheme, path/query/fragment, userinfo (up to the last '@'), port,
+ * trailing dots and a leading "www.".
+ * Example: "https://user@BIT.LY.:443/x?y" → "bit.ly"; "https://google.com@evil.xyz/x" → "evil.xyz"
  */
 export function extractDomain(url: string): string {
-  try {
-    let cleanUrl = url.toLowerCase();
-    cleanUrl = cleanUrl.replace(/^https?:\/\//, '');
-    cleanUrl = cleanUrl.replace(/^www\./, '');
-    cleanUrl = cleanUrl.split('/')[0];
-    cleanUrl = cleanUrl.split('?')[0];
-    cleanUrl = cleanUrl.split('#')[0];
-    return cleanUrl;
-  } catch {
-    // Robust fallback using regex
-    const match = url.match(/(?:https?:\/\/)?(?:www\.)?([^/\s?#]+)/);
-    return match ? match[1].toLowerCase() : url.toLowerCase();
-  }
+  let host = url.trim().toLowerCase();
+  host = host.replace(/^[a-z][a-z0-9+.-]*:\/\//, '');
+  host = host.split(/[/?#]/)[0];
+  host = host.slice(host.lastIndexOf('@') + 1);
+  host = host.replace(/:\d+$/, '');
+  host = host.replace(/\.+$/, '');
+  host = host.replace(/^www\./, '');
+  return host;
 }
 
 /**

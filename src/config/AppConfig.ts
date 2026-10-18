@@ -49,6 +49,16 @@ export const WHITELISTED_DOMAINS = [
   // Add user's trusted domains here
 ];
 
+// Google hosts that serve content anyone can publish: never official, always checked by reputation sources
+export const USER_CONTENT_HOSTS = [
+  'sites.google.com',
+  'docs.google.com',
+  'drive.google.com',
+  'forms.google.com',
+  'script.google.com',
+  'storage.googleapis.com',
+];
+
 export const SUSPICIOUS_PATTERNS = [
   /urgent|urgente|immediate|inmediato|ahora|ya|hoy|today/gi,
   /click|pincha|haz.clic|acceda|ingrese/gi,

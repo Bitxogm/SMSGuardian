@@ -27,6 +27,13 @@ export async function ensureGeminiConsent(): Promise<boolean> {
   if (stored === 'granted') return true;
 
   const allowed = await askConsent();
-  if (allowed) await databaseService.setSetting(GEMINI_CONSENT_KEY, 'granted');
+  if (allowed) {
+    try {
+      await databaseService.setSetting(GEMINI_CONSENT_KEY, 'granted');
+    } catch {
+      // Could not persist it: honour the answer this time and ask again next time
+      console.error('Could not save Gemini consent');
+    }
+  }
   return allowed;
 }
