@@ -22,6 +22,7 @@ class DatabaseService {
       await this.createTables();
       await this.purgeDeletedQuarantineOnce();
       await this.purgePreloadedContactsOnce();
+      await this.purgePreloadedSpamOnce();
       await this.loadInitialData();
       console.log('Database initialized successfully');
     } catch (error) {
@@ -66,6 +67,29 @@ class DatabaseService {
       console.log(`Purged ${result.rowsAffected} preloaded test contacts`);
     } catch (error) {
       console.error('Error purging preloaded test contacts:', error instanceof Error ? error.message : error);
+    }
+  }
+
+  // Earlier builds re-inserted three sample spam numbers on every initialize(), reactivating
+  // them after the user removed them. Delete them once if number, source and type still match.
+  private async purgePreloadedSpamOnce(): Promise<void> {
+    const flag = 'purge_preloaded_spam_v1';
+    try {
+      if ((await this.getSetting(flag)) === 'done') return;
+
+      // Parameterised so a driver error message never echoes the numbers into the log
+      const [result] = await this.database!.executeSql(
+        `DELETE FROM spam_numbers
+         WHERE source = 'preloaded'
+           AND ((phone_number = ? AND spam_type = ?)
+             OR (phone_number = ? AND spam_type = ?)
+             OR (phone_number = ? AND spam_type = ?))`,
+        ['+34666000001', 'phishing', '+34900000002', 'commercial', '+34911000003', 'scam']
+      );
+      await this.setSetting(flag, 'done');
+      console.log(`Purged ${result.rowsAffected} preloaded spam numbers`);
+    } catch (error) {
+      console.error('Error purging preloaded spam numbers:', error instanceof Error ? error.message : error);
     }
   }
 
@@ -173,18 +197,6 @@ class DatabaseService {
   }
 
   private async loadInitialData(): Promise<void> {
-    // Números spam españoles (ejemplos)
-    const spanishSpamNumbers = [
-      { phone: '+34666000001', type: 'phishing' },
-      { phone: '+34900000002', type: 'commercial' },
-      { phone: '+34911000003', type: 'scam' },
-    ];
-
-    // Cargar números spam
-    for (const spam of spanishSpamNumbers) {
-      await this.addSpamNumber(spam.phone, spam.type as any, 'preloaded');
-    }
-
     // Configuraciones por defecto
     await this.setSetting('protection_level', 'balanced');
     await this.setSetting('enable_url_analysis', 'true');
