@@ -109,6 +109,15 @@ export class URLThreatAnalyzer {
     }
   }
 
+  // Reputation services that would be queried, for UI copy (key presence only, never values)
+  static configuredSources(): string[] {
+    return [
+      this.API_KEYS.virusTotal ? 'VirusTotal' : '',
+      this.API_KEYS.safeBrowsing ? 'Google Safe Browsing' : '',
+      this.API_KEYS.phishTank ? 'PhishTank' : '',
+    ].filter(Boolean);
+  }
+
   private static hasAPIKeys(): boolean {
     return !!(this.API_KEYS.virusTotal || this.API_KEYS.safeBrowsing || this.API_KEYS.phishTank);
   }

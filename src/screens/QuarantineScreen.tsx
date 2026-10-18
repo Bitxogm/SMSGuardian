@@ -17,6 +17,7 @@ import { SMSAnalysisService } from '../services/SMSAnalysisService';
 import { URLThreatAnalyzer, URLThreatResult } from '../services/URLThreatAnalyzer';
 import { PhoneNumberReputationService } from '../services/PhoneNumberReputationService';
 import { APP_CONFIG } from '../config/AppConfig';
+import { ensureGeminiConsent } from '../utils/geminiConsent';
 
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 
@@ -29,6 +30,31 @@ const getDetectedURLs = (sms: QuarantinedSMS): string[] =>
   sms.analyzed_urls && sms.analyzed_urls.length > 0
     ? sms.analyzed_urls
     : SMSAnalysisService.extractURLs(sms.message_content);
+
+const UNVERIFIED_MESSAGE = '⚠️ No se pudo verificar este enlace. No lo abras si no esperabas el mensaje.';
+
+// Three-state presentation of a URL verdict. Never shows percentages.
+const describeVerdict = (result: URLThreatResult): { label: string; message: string } => {
+  if (result.verdict === 'malicious') {
+    return {
+      label: '🚨 PELIGROSA',
+      message: result.source === 'local_analysis' ? 'Detectada por el análisis local.' : `Detectada por ${result.source}.`,
+    };
+  }
+  if (result.verdict === 'unverified') {
+    return {
+      label: '❔ SIN VERIFICAR',
+      message: result.reason ? `${UNVERIFIED_MESSAGE}\nMotivo: ${result.reason}.` : UNVERIFIED_MESSAGE,
+    };
+  }
+  if (result.source === 'local_whitelist') {
+    return { label: '✅ DOMINIO OFICIAL', message: 'Dominio oficial reconocido (lista local).' };
+  }
+  return {
+    label: '✅ SIN AMENAZAS CONOCIDAS',
+    message: `Sin amenazas conocidas en ${result.respondedSources.join(', ')}. Esto no garantiza que sea seguro.`,
+  };
+};
 
 export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
   const [quarantinedSMS, setQuarantinedSMS] = useState<QuarantinedSMS[]>([]);
@@ -119,6 +145,22 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
     }
   };
 
+  const openGeminiChat = async (sms: QuarantinedSMS) => {
+    if (!(await ensureGeminiConsent())) return;
+
+    setShowPreview(false); // Close preview
+    // @ts-ignore - We know navigation exists
+    navigation.navigate('AnalysisChat', {
+      phoneNumber: sms.phone_number,
+      messageBody: sms.message_content
+    });
+  };
+
+  const geminiButton = (sms: QuarantinedSMS) => ({
+    text: 'Analizar con Gemini',
+    onPress: () => { openGeminiChat(sms); },
+  });
+
   const analyzeURL = async (url: string) => {
     if (isAnalyzing) return;
 
@@ -134,12 +176,11 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
 
       // Mostrar resultado después de un breve delay para evitar problemas de modal
       modalTimeoutRef.current = setTimeout(() => {
-        const threatEmoji = result.isMalicious ? '🚨' : '✅';
-        const threatText = result.isMalicious ? 'PELIGROSA' : 'SEGURA';
+        const { label, message } = describeVerdict(result);
 
         Alert.alert(
-          `${threatEmoji} Análisis Completado`,
-          `🔍 URL: ${result.url.length > 40 ? result.url.substring(0, 40) + '...' : result.url}\n\n📊 Estado: ${threatText}\n\n🎯 Confianza: ${result.confidence}%\n\n🔎 Fuente: ${result.source}\n\n📝 Detalles: ${result.details}`,
+          label,
+          `🔍 URL: ${result.url.length > 40 ? result.url.substring(0, 40) + '...' : result.url}\n\n${message}`,
           [
             { text: 'OK' },
             ...(result.isMalicious ? [{
@@ -148,7 +189,8 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
               onPress: () => {
                 Alert.alert('Reportado', 'URL marcada como maliciosa en la base de datos local');
               }
-            }] : [])
+            }] : []),
+            ...(result.verdict === 'unverified' && selectedSMS ? [geminiButton(selectedSMS)] : [])
           ]
         );
       }, 300);
@@ -162,9 +204,14 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
   };
 
   const promptURLAnalysis = (url: string) => {
+    const sources = URLThreatAnalyzer.configuredSources();
+    const sourcesText = sources.length > 0
+      ? `Se consultarán ${sources.join(', ')}.`
+      : 'No hay servicios de reputación configurados: solo se aplicará el análisis local.';
+
     Alert.alert(
       'Análisis de Seguridad',
-      `¿Analizar esta URL con servicios de seguridad?\n\n${url.length > 50 ? url.substring(0, 50) + '...' : url}\n\nSe consultarán VirusTotal, Google Safe Browsing y PhishTank.`,
+      `¿Analizar esta URL con servicios de seguridad?\n\n${url.length > 50 ? url.substring(0, 50) + '...' : url}\n\n${sourcesText}`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -182,24 +229,51 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
     }
 
     setIsAnalyzing(true);
-    let maliciousCount = 0;
+    const results: URLThreatResult[] = [];
+    let failedCount = 0;
 
     for (const url of detectedURLs) {
       try {
         const result = await URLThreatAnalyzer.analyzeURL(url);
         setUrlAnalysisResults(prev => ({ ...prev, [url]: result }));
-        if (result.isMalicious) maliciousCount++;
+        results.push(result);
       } catch (error) {
         console.error('Error scanning URL:', url, error);
+        failedCount++;
       }
     }
 
     setIsAnalyzing(false);
 
+    const maliciousCount = results.filter(r => r.verdict === 'malicious').length;
+    const unverified = results.filter(r => r.verdict === 'unverified');
+
     if (maliciousCount > 0) {
       Alert.alert('⚠️ Amenazas Detectadas', `Se encontraron ${maliciousCount} URLs maliciosas. Se recomienda eliminar el mensaje.`);
+    } else if (unverified.length > 0 || failedCount > 0) {
+      // A URL whose scan failed is as unverified as one no source could vouch for
+      const count = unverified.length + failedCount;
+      const reasons = Array.from(new Set([
+        ...unverified.map(r => r.reason).filter((r): r is string => !!r),
+        ...(failedCount > 0 ? ['error en el análisis'] : []),
+      ]));
+      const headline = count === 1
+        ? UNVERIFIED_MESSAGE
+        : `⚠️ No se pudieron verificar ${count} enlaces. No los abras si no esperabas el mensaje.`;
+      Alert.alert(
+        '❔ Sin verificar',
+        reasons.length > 0 ? `${headline}\nMotivo: ${reasons.join('; ')}.` : headline,
+        [{ text: 'OK' }, ...(selectedSMS ? [geminiButton(selectedSMS)] : [])]
+      );
     } else {
-      Alert.alert('✅ Análisis Completado', 'No se encontraron amenazas en las URLs analizadas (según heurística local).');
+      const sources = Array.from(new Set(results.flatMap(r => r.respondedSources)));
+      const allOfficial = results.every(r => r.source === 'local_whitelist');
+      Alert.alert(
+        '✅ Sin amenazas conocidas',
+        allOfficial
+          ? 'Dominio oficial reconocido (lista local).'
+          : `Sin amenazas conocidas en ${sources.join(', ')}. Esto no garantiza que sea seguro.`
+      );
     }
   };
 
@@ -276,11 +350,18 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
   );
 
   const getAnalysisStatusColor = (result: URLThreatResult) => {
-    if (result.isMalicious) {
+    if (result.verdict === 'malicious') {
       return {
         backgroundColor: '#FEE2E2',
         borderColor: '#FCA5A5',
         textColor: '#DC2626'
+      };
+    }
+    if (result.verdict === 'unverified') {
+      return {
+        backgroundColor: '#FEF3C7',
+        borderColor: '#FCD34D',
+        textColor: '#B45309'
       };
     }
     return {
@@ -365,17 +446,11 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
                       {analysis ? (
                         <View style={styles.analysisResultContainer}>
                           <Text style={[styles.analysisResult, { color: colors?.textColor }]}>
-                            {analysis.isMalicious ? '🚨 PELIGROSA' : '✅ SEGURA'}
-                            ({analysis.confidence}%)
+                            {describeVerdict(analysis).label}
                           </Text>
-                          <Text style={styles.analysisSource}>
-                            Fuente: {analysis.source}
+                          <Text style={styles.analysisDetails}>
+                            {describeVerdict(analysis).message}
                           </Text>
-                          {analysis.details && (
-                            <Text style={styles.analysisDetails} numberOfLines={2}>
-                              {analysis.details}
-                            </Text>
-                          )}
                         </View>
                       ) : (
                         <Text style={styles.analyzeText}>
@@ -406,14 +481,7 @@ export const QuarantineScreen: React.FC<Props> = ({ onNavigateBack }) => {
 
             <TouchableOpacity
               style={styles.chatButton}
-              onPress={() => {
-                setShowPreview(false); // Close preview
-                // @ts-ignore - We know navigation exists
-                navigation.navigate('AnalysisChat', {
-                  phoneNumber: selectedSMS.phone_number,
-                  messageBody: selectedSMS.message_content
-                });
-              }}
+              onPress={() => { openGeminiChat(selectedSMS); }}
             >
               <Text style={styles.chatButtonText}>🧠 Analizar con Gemini AI</Text>
             </TouchableOpacity>
@@ -705,11 +773,6 @@ const styles = StyleSheet.create({
   analysisResult: {
     fontSize: 12,
     fontWeight: '600',
-    marginBottom: 2,
-  },
-  analysisSource: {
-    fontSize: 10,
-    color: '#6B7280',
     marginBottom: 2,
   },
   analysisDetails: {
