@@ -4,6 +4,7 @@ import { Alert, Text, TouchableOpacity } from 'react-native';
 import { QuarantineScreen } from '../src/screens/QuarantineScreen';
 import { QuarantineService } from '../src/services/QuarantineService';
 import { URLThreatAnalyzer } from '../src/services/URLThreatAnalyzer';
+import { REAL_SMS, TINDER_URL } from '../test-support/realSmsSamples';
 
 jest.mock('@react-navigation/native', () => ({
   useIsFocused: () => true,
@@ -18,8 +19,6 @@ jest.mock('../src/services/DatabaseService', () => ({ databaseService: {} }));
 jest.mock('../src/services/URLThreatAnalyzer', () => ({
   URLThreatAnalyzer: { analyzeURL: jest.fn() },
 }));
-
-const TINDER_URL = 'https://go.tinder.com/0XdNvUrqXWb';
 
 const legacyRecord = (message_content: string) => ({
   id: 1,
@@ -82,9 +81,7 @@ describe('QuarantineScreen URL fallback for records saved without analyzed_urls'
   });
 
   it('shows the Tinder URL in the modal and scans it only when "Escanear" is pressed', async () => {
-    const root = await openPreview(legacyRecord(
-      'Tinder: Your profile is currently hidden. Tap to view: https://go.tinder.com/0XdNvUrqXWb\nReply STOP to unsubscribe.'
-    ));
+    const root = await openPreview(legacyRecord(REAL_SMS.tinder.body));
 
     expect(modalShowsURL(root, TINDER_URL)).toBe(true);
     expect(mockedAnalyzer.analyzeURL).not.toHaveBeenCalled();

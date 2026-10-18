@@ -3,6 +3,7 @@ import ReactTestRenderer, { act } from 'react-test-renderer';
 import { Alert, Text, TouchableOpacity } from 'react-native';
 import { InboxScreen } from '../src/screens/InboxScreen';
 import { databaseService } from '../src/services/DatabaseService';
+import { REAL_SMS, TINDER_URL } from '../test-support/realSmsSamples';
 
 // Real SQLite in memory (node:sqlite, Node >= 22.13) behind the react-native-sqlite-storage API
 jest.mock('react-native-sqlite-storage', () => {
@@ -38,9 +39,8 @@ jest.mock('../src/services/URLThreatAnalyzer', () => ({ URLThreatAnalyzer: {} })
 
 const mockState: { db: any } = { db: null };
 
-const TINDER_SENDER = 'Tinder';
-const TINDER_BODY =
-  'Tinder: Your profile is currently hidden. Tap to view: https://go.tinder.com/0XdNvUrqXWb\nReply STOP to unsubscribe.';
+const TINDER_SENDER = REAL_SMS.tinder.sender;
+const TINDER_BODY = REAL_SMS.tinder.body;
 
 describe('InboxScreen manual quarantine', () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | null = null;
@@ -83,7 +83,7 @@ describe('InboxScreen manual quarantine', () => {
       .get();
     expect(row.quarantine_reason).toBe('Manual Quarantine');
     expect(row.contains_urls).toBe(1);
-    expect(JSON.parse(row.analyzed_urls)).toEqual(['https://go.tinder.com/0XdNvUrqXWb']);
+    expect(JSON.parse(row.analyzed_urls)).toEqual([TINDER_URL]);
     alertSpy.mockRestore();
   });
 });
